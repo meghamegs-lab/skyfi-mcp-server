@@ -1,0 +1,36 @@
+{
+  "api": {
+    "base_url": "https://app.skyfi.com/platform-api",
+    "api_key": "your-api-key-here",
+    "timeout_seconds": 30,
+    "max_retries": 3
+  },
+  "auth": {
+    "token_secret": "your-secret-key-for-signing-tokens",
+    "token_ttl_seconds": 300
+  },
+  "webhooks": {
+    "data_dir": "~/.skyfi",
+    "event_ttl_days": 30,
+    "db_path": "~/.skyfi/webhook_events.db"
+  },
+  "geocoding": {
+    "provider": "nominatim",
+    "cache_enabled": true,
+    "cache_ttl_hours": 24
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  },
+  "features": {
+    "confirmation_tokens_enabled": true,
+    "webhook_validation_enabled": true,
+    "request_signing_enabled": false
+  },
+  "notifications": {
+    "webhook_timeout_seconds": 10,
+    "max_retries": 3,
+    "retry_backoff_factor": 2
+  }
+}
