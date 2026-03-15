@@ -18,8 +18,8 @@ class TestE080LandingPage:
 
     @pytest.fixture
     def app(self):
-        from skyfi_mcp.server import mcp
         from skyfi_mcp.__main__ import _create_combined_app
+        from skyfi_mcp.server import mcp
         return _create_combined_app(mcp)
 
     @pytest.mark.asyncio
@@ -53,8 +53,8 @@ class TestE081HealthCheck:
 
     @pytest.fixture
     def app(self):
-        from skyfi_mcp.server import mcp
         from skyfi_mcp.__main__ import _create_combined_app
+        from skyfi_mcp.server import mcp
         return _create_combined_app(mcp)
 
     @pytest.mark.asyncio
@@ -90,8 +90,8 @@ class TestE082WebhookEndpoint:
 
     @pytest.fixture
     def app(self):
-        from skyfi_mcp.server import mcp
         from skyfi_mcp.__main__ import _create_combined_app
+        from skyfi_mcp.server import mcp
         return _create_combined_app(mcp)
 
     @pytest.mark.asyncio
@@ -136,8 +136,8 @@ class TestE084InvalidWebhook:
 
     @pytest.fixture
     def app(self):
-        from skyfi_mcp.server import mcp
         from skyfi_mcp.__main__ import _create_combined_app
+        from skyfi_mcp.server import mcp
         return _create_combined_app(mcp)
 
     @pytest.mark.asyncio
