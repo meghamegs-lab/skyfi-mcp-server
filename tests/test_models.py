@@ -221,7 +221,7 @@ class TestTaskingOrderRequest:
             "windowEnd": "2025-04-30T23:59:59Z",
             "productType": "DAY",
             "resolution": "1.5m",
-            "deliveryDriver": "GCS",
+            "deliveryDriver": "GS",
             "maxCloudCoveragePercent": 30,
             "maxOffNadirAngle": 20,
         }

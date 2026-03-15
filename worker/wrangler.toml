@@ -1,0 +1,31 @@
+#:schema node_modules/wrangler/config-schema.json
+
+name = "skyfi-mcp-worker"
+main = "src/index.ts"
+compatibility_date = "2025-02-25"
+
+# Python backend URL (set per environment)
+[vars]
+PYTHON_BACKEND_URL = "http://localhost:8000"
+
+# Durable Objects for MCP session management
+[[durable_objects.bindings]]
+name = "MCP_SESSION"
+class_name = "SkyFiMcpAgent"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["SkyFiMcpAgent"]
+
+# ── Production environment ──────────────────────────────────────────────────
+[env.production]
+vars = { PYTHON_BACKEND_URL = "https://skyfi-mcp-server.fly.dev" }
+
+# KV namespace for OAuth state (authorization codes, tokens)
+[[kv_namespaces]]
+id = "d781b4e2b82e451c812ea388c88fdbc3"
+
+# Secrets (set via `wrangler secret put`):
+#   SKYFI_OAUTH_CLIENT_ID     — OAuth client ID for Claude Web
+#   SKYFI_OAUTH_CLIENT_SECRET — OAuth client secret for Claude Web
+#   COOKIE_ENCRYPTION_KEY     — Encryption key for session cookies

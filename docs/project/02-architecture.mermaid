@@ -1,0 +1,146 @@
+%% SkyFi MCP Server — Architecture Diagram
+%% Render at https://mermaid.live or any Mermaid-compatible viewer
+
+graph TB
+    subgraph Clients["AI Agent Clients"]
+        CL1["Claude Web / Desktop"]
+        CL2["OpenAI / GPT-4"]
+        CL3["LangChain / LangGraph"]
+        CL4["Google ADK / Gemini"]
+        CL5["Vercel AI SDK"]
+        CL6["Custom Agent"]
+    end
+
+    subgraph Transport["MCP Transport Layer"]
+        HTTP["Streamable HTTP<br/>/mcp endpoint"]
+        SSE["SSE Streaming<br/>(Server-Sent Events)"]
+        STDIO["stdio<br/>(local clients)"]
+    end
+
+    subgraph ASGI["ASGI Application (__main__.py)"]
+        direction TB
+        WRAPPER["Raw ASGI Wrapper<br/>intercepts /, /health, /webhook"]
+        LANDING["GET / → Landing Page JSON"]
+        HEALTH["GET /health → Health Check"]
+        WEBHOOK["POST /webhook → Webhook Receiver"]
+        MCPAPP["FastMCP http_app()<br/>StarletteWithLifespan"]
+    end
+
+    subgraph Server["FastMCP Server (server.py)"]
+        direction TB
+        INSTRUCTIONS["Server Instructions<br/>'Always present pricing before ordering'"]
+
+        subgraph Tools["21 MCP Tools"]
+            direction LR
+            subgraph Search["Search & Discovery"]
+                T1["search_archive"]
+                T2["search_archive_next_page"]
+                T3["get_archive_details"]
+            end
+            subgraph Pricing["Pricing & Feasibility"]
+                T4["get_pricing_options"]
+                T5["check_feasibility"]
+                T6["get_feasibility_result"]
+                T7["predict_satellite_passes"]
+            end
+            subgraph Orders["Ordering (Token-Gated)"]
+                T8["create_archive_order"]
+                T9["create_tasking_order"]
+                T10["list_orders"]
+                T11["get_order_status"]
+                T12["get_download_url"]
+                T13["schedule_redelivery"]
+            end
+            subgraph Monitoring["AOI Monitoring"]
+                T14["create_aoi_notification"]
+                T15["list_notifications"]
+                T16["get_notification_history"]
+                T17["delete_notification"]
+                T18["check_new_images"]
+            end
+            subgraph OSM["OSM Tools"]
+                T19["geocode_location"]
+                T20["reverse_geocode_location"]
+                T21["search_nearby_pois"]
+            end
+            subgraph Account["Account"]
+                T22["get_account_info"]
+            end
+        end
+    end
+
+    subgraph Auth["Authentication Layer (auth/)"]
+        LOCAL["Local Auth<br/>SKYFI_API_KEY env var<br/>~/.skyfi/config.json"]
+        CLOUD["Cloud Auth<br/>Authorization: Bearer<br/>X-Skyfi-Api-Key header"]
+        CONFIG["AuthConfig<br/>→ X-Skyfi-Api-Key header"]
+    end
+
+    subgraph Safety["Human-in-the-Loop Safety (auth/tokens.py)"]
+        TOKEN_CREATE["Token Creation<br/>HMAC-SHA256 signed<br/>{action, context_hash, ts}"]
+        TOKEN_VALIDATE["Token Validation<br/>signature + expiry (5min)<br/>+ action type check"]
+    end
+
+    subgraph APIClient["SkyFi API Client (api/)"]
+        CLIENT["SkyFiClient<br/>async httpx"]
+        MODELS["57 Pydantic v2 Models<br/>camelCase alias<br/>populate_by_name"]
+    end
+
+    subgraph External["External Services"]
+        SKYFI_API["SkyFi Platform API<br/>app.skyfi.com/platform-api<br/>19 endpoints"]
+        NOMINATIM["OSM Nominatim<br/>Forward/Reverse Geocoding"]
+        OVERPASS["OSM Overpass API<br/>POI Search"]
+    end
+
+    subgraph Storage["Local Storage"]
+        SQLITE["SQLite<br/>webhook_events.db<br/>30-day TTL"]
+    end
+
+    %% Client connections
+    CL1 & CL2 & CL3 & CL4 & CL5 & CL6 --> HTTP & SSE
+    CL1 --> STDIO
+
+    %% Transport to ASGI
+    HTTP & SSE & STDIO --> WRAPPER
+
+    %% ASGI routing
+    WRAPPER --> LANDING
+    WRAPPER --> HEALTH
+    WRAPPER --> WEBHOOK
+    WRAPPER --> MCPAPP
+    MCPAPP --> Server
+
+    %% Webhook to storage
+    WEBHOOK --> SQLITE
+
+    %% Tool dependencies
+    T4 --> TOKEN_CREATE
+    T5 --> TOKEN_CREATE
+    T8 --> TOKEN_VALIDATE
+    T9 --> TOKEN_VALIDATE
+
+    T18 --> SQLITE
+
+    %% Auth flow
+    Tools --> AUTH
+    LOCAL --> CONFIG
+    CLOUD --> CONFIG
+
+    %% API Client
+    CONFIG --> CLIENT
+    CLIENT --> MODELS
+    CLIENT --> SKYFI_API
+
+    %% OSM
+    T19 & T20 --> NOMINATIM
+    T21 --> OVERPASS
+
+    %% Styling
+    classDef primary fill:#2563eb,stroke:#1d4ed8,color:#fff
+    classDef safety fill:#dc2626,stroke:#991b1b,color:#fff
+    classDef external fill:#059669,stroke:#047857,color:#fff
+    classDef storage fill:#d97706,stroke:#b45309,color:#fff
+
+    class HTTP,SSE,STDIO primary
+    class TOKEN_CREATE,TOKEN_VALIDATE safety
+    class SKYFI_API,NOMINATIM,OVERPASS external
+    class SQLITE storage

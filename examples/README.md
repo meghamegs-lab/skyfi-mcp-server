@@ -1,10 +1,20 @@
 # SkyFi MCP Server Examples
 
-This directory contains examples demonstrating how to use the SkyFi MCP server with LangChain and LangGraph for geospatial research and satellite imagery analysis.
+This directory contains examples demonstrating how to use the SkyFi MCP server for geospatial research and satellite imagery analysis.
 
-## Demo Agent
+## Simple Agent (`simple_agent.py`)
 
-The primary example is `demo_agent.py`, a production-quality LangChain agent that demonstrates the full capabilities of the SkyFi platform.
+A minimal ~140-line agent with no framework dependencies (just `httpx`). Demonstrates the core search → preview → confirm workflow by calling the `/tool/<name>` HTTP proxy endpoints directly.
+
+```bash
+export SKYFI_API_KEY="sk-..."
+python examples/simple_agent.py "Golden Gate Bridge"
+python examples/simple_agent.py --mcp-url http://localhost:8000/mcp "Port of Singapore"
+```
+
+## Demo Agent (`demo_agent.py`)
+
+The full-featured example — a production-quality LangChain agent that demonstrates all capabilities of the SkyFi platform.
 
 ### Features
 
@@ -12,7 +22,7 @@ The primary example is `demo_agent.py`, a production-quality LangChain agent tha
 - **Human-in-Loop Confirmation**: Enforces user confirmation before placing any orders
 - **Multi-turn Conversations**: Maintains chat history for contextual research sessions
 - **Multiple LLM Support**: Works with OpenAI (GPT-4o) and Anthropic (Claude) models
-- **Comprehensive Tool Integration**: Access to all 30+ SkyFi MCP tools
+- **Comprehensive Tool Integration**: Access to all 12 SkyFi MCP tools
 - **Error Handling**: Graceful error recovery and informative messages
 - **Production-Quality Code**: Type hints, logging, full documentation
 
@@ -79,38 +89,28 @@ async with MultiServerMCPClient({"skyfi": {"url": mcp_url, "transport": "streama
 
 All SkyFi MCP tools are automatically wrapped and made available to the agent.
 
-### Available Tools
+### Available Tools (12)
 
 The agent has access to these tool categories:
 
-**Geocoding**
+**Search & Geospatial**
+- `search_satellite_imagery`: Search catalog with auto-geocoding, filters, and pagination
 - `geocode_location`: Convert place names to WKT coordinates
-- `reverse_geocode_location`: Convert coordinates to place names
 - `search_nearby_pois`: Find points of interest near a location
 
-**Archive Search**
-- `search_archive`: Search existing satellite imagery
-- `search_archive_next_page`: Paginate through results
-- `get_archive_details`: Get full metadata for an image
+**Pricing & Feasibility**
+- `get_pricing_overview`: General pricing across all products/resolutions
+- `check_feasibility`: Verify if a new capture is possible (auto-polls for results)
+- `preview_order`: Get exact pricing + feasibility check, returns confirmation_token
 
-**Planning**
-- `check_feasibility`: Verify if a new capture is possible
-- `get_feasibility_result`: Poll for feasibility status
-- `predict_satellite_passes`: Find upcoming satellite passes
-
-**Pricing & Orders**
-- `get_pricing_options`: Get pricing information
-- `create_archive_order`: Order existing imagery (requires confirmation token)
-- `create_tasking_order`: Request new satellite capture (requires confirmation token)
-- `list_orders`: View your order history
-- `get_order_status`: Check status of a specific order
+**Ordering (Human-in-the-Loop)**
+- `confirm_order`: Place archive or tasking order (requires confirmation_token)
+- `check_order_status`: View specific order or list order history
+- `get_download_url`: Get download URL for completed imagery
 
 **Monitoring**
-- `create_aoi_notification`: Monitor areas for new imagery
-- `list_notifications`: View your active monitors
-- `get_notification_history`: Check notification triggers
-- `delete_notification`: Remove a monitor
-- `check_new_images`: Poll for new imagery alerts
+- `setup_area_monitoring`: Create, list, view history, or delete AOI monitors
+- `check_new_images`: Poll for new imagery alerts from webhooks
 
 **Account**
 - `get_account_info`: Check budget and payment status
@@ -120,11 +120,11 @@ The agent has access to these tool categories:
 The agent enforces a human-in-loop confirmation pattern:
 
 1. User requests imagery search/analysis
-2. Agent calls `get_pricing_options()` or `check_feasibility()`
-3. Agent receives a `confirmation_token` in the response
-4. Agent presents pricing/feasibility to the user
+2. Agent calls `search_satellite_imagery()` to find images (auto-geocodes place names)
+3. Agent calls `preview_order()` to get exact pricing + confirmation_token
+4. Agent presents pricing to the user
 5. User confirms they want to proceed
-6. Agent calls `create_archive_order()` or `create_tasking_order()` with the token
+6. Agent calls `confirm_order()` with the confirmation_token
 7. Order is placed and user receives confirmation
 
 **Without the confirmation token, orders will be rejected.**
