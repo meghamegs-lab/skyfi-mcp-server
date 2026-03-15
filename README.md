@@ -82,9 +82,16 @@ skyfi-mcp serve
 skyfi-mcp serve --transport stdio
 ```
 
-The server starts at `http://localhost:8000/mcp`.
+The server starts at `http://localhost:8000` with these endpoints:
 
-## Tools Reference
+| Path | Method | Description |
+|------|--------|-------------|
+| `/` | GET | Landing page (server info) |
+| `/health` | GET | Health check |
+| `/webhook` | POST | SkyFi notification receiver |
+| `/mcp` | POST/GET | MCP protocol (for MCP clients) |
+
+## Tools Reference (22 tools)
 
 ### Search & Discovery
 | Tool | Description |
@@ -138,9 +145,7 @@ Orders are protected by a confirmation token system:
 3. Agent calls create_archive_order with confirmation_token → order placed
 ```
 
-- Tokens are HMAC-signed and expire after 5 minutes
-- Order tools **reject** requests without a valid token
-- Tokens are stateless (no server-side storage needed)
+Tokens are HMAC-signed, expire after 5 minutes, and are validated server-side. Order tools reject requests without a valid token. This is enforced at the server level — agents cannot bypass it.
 
 ## Deployment
 
@@ -160,6 +165,10 @@ Your MCP server is now at `https://your-app.fly.dev/mcp`.
 docker build -t skyfi-mcp .
 docker run -p 8000:8000 -e SKYFI_API_KEY="your-key" skyfi-mcp
 ```
+
+### AWS ECS Fargate
+
+Recommended for AWS deployments — supports HTTP streaming with no cold starts. Use the provided `Dockerfile` with your ECS task definition.
 
 ### Cloud Auth (Multi-user)
 
@@ -200,6 +209,18 @@ Try: *"What satellite imagery is available for the new Istanbul airport?"*
 
 The agent will geocode the location, search the archive, check feasibility for new captures, compare pricing, and present a research brief.
 
+## Project Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Phase & Requirements Map](docs/project/01-phase-requirements-map.md) | All 19 requirements mapped to 8 implementation phases |
+| [Architecture Diagram](docs/project/02-architecture.mermaid) | Full system architecture in Mermaid format |
+| [Golden Evals](docs/project/03-golden-evals.md) | 95 test scenarios across 10 categories |
+| [Observability Strategy](docs/project/04-observability.md) | Logging, metrics, tracing recommendations |
+| [Design Document](docs/project/05-presearch-design-document.md) | Pre-implementation research and design decisions |
+| [Time & Tradeoff Analysis](docs/project/06-time-estimation-tradeoffs.md) | Estimation analysis and known tradeoffs |
+| [CLAUDE.md](CLAUDE.md) | AI assistant context file for this codebase |
+
 ## Development
 
 ```bash
@@ -207,7 +228,7 @@ git clone https://github.com/skyfi/skyfi-mcp-server.git
 cd skyfi-mcp-server
 pip install -e ".[dev]"
 
-# Run tests
+# Run tests (51 tests)
 pytest -v
 
 # Lint
@@ -220,24 +241,22 @@ ruff format src/ tests/
 ```
 skyfi-mcp-server/
 ├── src/skyfi_mcp/
-│   ├── __init__.py          # Package metadata
-│   ├── __main__.py          # CLI entry point
-│   ├── server.py            # FastMCP server with all 21 tools
+│   ├── __main__.py          # CLI + ASGI app composition
+│   ├── server.py            # FastMCP server with 22 tools
 │   ├── api/
 │   │   ├── client.py        # Async SkyFi API client (httpx)
-│   │   └── models.py        # Pydantic v2 models (57 schemas)
+│   │   └── models.py        # 57 Pydantic v2 models from OpenAPI
 │   ├── auth/
-│   │   ├── config.py        # Dual auth (local config + cloud headers)
+│   │   ├── config.py        # Dual auth (local + cloud)
 │   │   └── tokens.py        # HMAC confirmation tokens
 │   ├── osm/
-│   │   └── geocoder.py      # Nominatim geocoding + Overpass POI search
+│   │   └── geocoder.py      # Nominatim + Overpass integration
 │   └── webhooks/
 │       └── store.py         # SQLite webhook event store
 ├── examples/
-│   ├── demo_agent.py        # LangChain research agent
-│   └── config/              # Example configuration files
-├── docs/                    # Integration guides (7 platforms)
-├── tests/                   # pytest test suite
+│   └── demo_agent.py        # LangChain research agent
+├── docs/                    # Integration guides (7 platforms) + project docs
+├── tests/                   # pytest suite (51 tests)
 ├── Dockerfile               # Container deployment
 ├── fly.toml                 # Fly.io configuration
 └── pyproject.toml           # Package configuration
