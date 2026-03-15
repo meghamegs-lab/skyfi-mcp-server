@@ -12,7 +12,7 @@ import logging
 import time
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from skyfi_mcp.api.client import SkyFiAPIError, SkyFiClient
 from skyfi_mcp.api.models import (
@@ -59,6 +59,10 @@ mcp = FastMCP(
 
 token_manager = ConfirmationTokenManager()
 event_store = WebhookEventStore()
+
+
+# NOTE: custom_route is broken in fastmcp >= 2.4. Custom HTTP routes
+# (health, webhook, landing page) are mounted in __main__.py via Starlette.
 
 
 def _get_client(api_key: str | None = None) -> SkyFiClient:

@@ -10,39 +10,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 
-from starlette.applications import Starlette
-from starlette.requests import Request
-from starlette.responses import JSONResponse
-from starlette.routing import Route
-
-
-def create_webhook_app():
-    """Create the webhook receiver Starlette routes."""
-    from skyfi_mcp.webhooks.store import WebhookEventStore
-
-    store = WebhookEventStore()
-
-    async def webhook_receiver(request: Request) -> JSONResponse:
-        """Receive webhook events from SkyFi notification system."""
-        try:
-            payload = await request.json()
-        except Exception:
-            return JSONResponse({"error": "Invalid JSON"}, status_code=400)
-
-        notification_id = payload.get("notification_id") or payload.get("notificationId") or "unknown"
-        store.store_event(notification_id, payload)
-
-        return JSONResponse({"status": "received"})
-
-    async def health_check(request: Request) -> JSONResponse:
-        return JSONResponse({"status": "healthy", "service": "skyfi-mcp"})
-
-    return [
-        Route("/webhook", webhook_receiver, methods=["POST"]),
-        Route("/health", health_check, methods=["GET"]),
-    ]
+logger = logging.getLogger("skyfi_mcp")
 
 
 def main():
@@ -54,8 +25,12 @@ def main():
 
     # serve command
     serve_parser = subparsers.add_parser("serve", help="Start the MCP server")
-    serve_parser.add_argument("--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)")
-    serve_parser.add_argument("--port", type=int, default=8000, help="Port to bind to (default: 8000)")
+    serve_parser.add_argument(
+        "--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)"
+    )
+    serve_parser.add_argument(
+        "--port", type=int, default=8000, help="Port to bind to (default: 8000)"
+    )
     serve_parser.add_argument(
         "--transport",
         choices=["streamable-http", "sse", "stdio"],
@@ -91,51 +66,168 @@ def _handle_config(args):
         if config_path.exists():
             print(f"Config already exists at {config_path}")
         else:
-            config_path.write_text(json.dumps({
-                "api_key": "YOUR_SKYFI_API_KEY_HERE",
-                "base_url": "https://app.skyfi.com/platform-api",
-            }, indent=2))
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "api_key": "YOUR_SKYFI_API_KEY_HERE",
+                        "base_url": "https://app.skyfi.com/platform-api",
+                    },
+                    indent=2,
+                )
+            )
             print(f"Config created at {config_path}")
             print("Edit the file to add your SkyFi API key.")
     elif args.show:
         from skyfi_mcp.auth.config import load_local_config
+
         config = load_local_config()
         if config:
-            masked_key = config.api_key[:8] + "..." + config.api_key[-4:] if len(config.api_key) > 12 else "***"
+            masked_key = (
+                config.api_key[:8] + "..." + config.api_key[-4:]
+                if len(config.api_key) > 12
+                else "***"
+            )
             print(f"API Key: {masked_key}")
             print(f"Base URL: {config.base_url}")
         else:
             print("No configuration found.")
-            print(f"Run 'skyfi-mcp config --init' or set SKYFI_API_KEY environment variable.")
+            print("Run 'skyfi-mcp config --init' or set SKYFI_API_KEY environment variable.")
     else:
         print("Use --init to create config or --show to display current config.")
+
+
+def _create_combined_app(mcp_server):
+    """Create an ASGI app with MCP + custom HTTP routes.
+
+    Strategy: wrap FastMCP's own ASGI app (``http_app()``) with a thin ASGI
+    dispatcher that intercepts ``/``, ``/health``, and ``/webhook`` before
+    they reach the MCP handler.  Everything else (including ``/mcp``,
+    lifespan events, and SSE streams) passes through untouched.
+
+    This avoids mutating FastMCP internals or nesting Starlette apps, which
+    both cause hard-to-debug lifespan and routing errors.
+    """
+    import json as _json
+
+    from skyfi_mcp.webhooks.store import WebhookEventStore
+
+    event_store = WebhookEventStore()
+
+    # -- tiny helpers for raw ASGI responses --------------------------------
+
+    async def _json_response(scope, receive, send, body: dict, status: int = 200):
+        payload = _json.dumps(body).encode()
+        await send({
+            "type": "http.response.start",
+            "status": status,
+            "headers": [
+                [b"content-type", b"application/json"],
+                [b"content-length", str(len(payload)).encode()],
+            ],
+        })
+        await send({"type": "http.response.body", "body": payload})
+
+    async def _read_body(receive) -> bytes:
+        body = b""
+        while True:
+            msg = await receive()
+            body += msg.get("body", b"")
+            if not msg.get("more_body", False):
+                break
+        return body
+
+    # -- custom route handlers ----------------------------------------------
+
+    async def handle_landing(scope, receive, send):
+        await _json_response(scope, receive, send, {
+            "name": "SkyFi MCP Server",
+            "version": "0.1.0",
+            "description": "Satellite imagery via Model Context Protocol",
+            "endpoints": {
+                "mcp": "/mcp  (MCP protocol — use an MCP client, not a browser)",
+                "health": "/health  (GET — health check)",
+                "webhook": "/webhook  (POST — SkyFi notification webhook receiver)",
+            },
+            "docs": "https://github.com/skyfi/skyfi-mcp-server",
+            "note": (
+                "This is an MCP server. Connect with Claude, ChatGPT, "
+                "LangChain, or any MCP-compatible client."
+            ),
+        })
+
+    async def handle_health(scope, receive, send):
+        await _json_response(scope, receive, send, {
+            "status": "healthy",
+            "service": "skyfi-mcp",
+            "version": "0.1.0",
+            "tools": 21,
+        })
+
+    async def handle_webhook(scope, receive, send):
+        raw = await _read_body(receive)
+        try:
+            payload = _json.loads(raw)
+        except Exception:
+            await _json_response(scope, receive, send, {"error": "Invalid JSON"}, 400)
+            return
+        notification_id = (
+            payload.get("notification_id")
+            or payload.get("notificationId")
+            or "unknown"
+        )
+        event_id = event_store.store_event(notification_id, payload)
+        logger.info("Webhook received: notification=%s, event=%s", notification_id, event_id)
+        await _json_response(scope, receive, send, {"status": "received", "event_id": event_id})
+
+    # -- the actual ASGI app ------------------------------------------------
+
+    mcp_app = mcp_server.http_app()
+
+    async def app(scope, receive, send):
+        # Pass lifespan and non-HTTP scopes straight to MCP
+        if scope["type"] != "http":
+            await mcp_app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        method = scope.get("method", "GET")
+
+        if path == "/" and method == "GET":
+            await handle_landing(scope, receive, send)
+        elif path == "/health" and method == "GET":
+            await handle_health(scope, receive, send)
+        elif path == "/webhook" and method == "POST":
+            await handle_webhook(scope, receive, send)
+        else:
+            # Everything else → FastMCP (handles /mcp, SSE, etc.)
+            await mcp_app(scope, receive, send)
+
+    return app
 
 
 def _handle_serve(args):
     """Handle serve subcommand."""
     from skyfi_mcp.server import mcp
 
+    print("Starting SkyFi MCP Server")
+    print(f"  Transport: {args.transport}")
+
     if args.transport == "stdio":
-        # Run with stdio transport for local MCP clients
+        print("  Mode: stdio (local MCP client)")
         mcp.run(transport="stdio")
     else:
-        # Run with HTTP transport (streamable-http or sse)
-        # Mount webhook routes alongside MCP
         import uvicorn
 
-        # Get the MCP's Starlette app and add webhook routes
-        # FastMCP.run() handles this internally, but we need to add our webhook endpoint
-        print(f"Starting SkyFi MCP Server on {args.host}:{args.port}")
-        print(f"Transport: {args.transport}")
-        print(f"MCP endpoint: http://{args.host}:{args.port}/mcp")
-        print(f"Webhook endpoint: http://{args.host}:{args.port}/webhook")
-        print(f"Health check: http://{args.host}:{args.port}/health")
+        print(f"  Host: {args.host}:{args.port}")
+        print()
+        print(f"  MCP endpoint:     http://{args.host}:{args.port}/mcp")
+        print(f"  Health check:     http://{args.host}:{args.port}/health")
+        print(f"  Webhook receiver: http://{args.host}:{args.port}/webhook")
+        print(f"  Landing page:     http://{args.host}:{args.port}/")
+        print()
 
-        mcp.settings.host = args.host
-        mcp.settings.port = args.port
-
-        # Use streamable-http which includes SSE support
-        mcp.run(transport="streamable-http")
+        app = _create_combined_app(mcp)
+        uvicorn.run(app, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
