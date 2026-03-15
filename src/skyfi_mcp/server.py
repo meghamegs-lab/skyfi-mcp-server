@@ -20,7 +20,6 @@ import asyncio
 import json
 import logging
 import time
-from typing import Any
 
 from fastmcp import Context, FastMCP
 from mcp.types import ToolAnnotations
@@ -30,14 +29,10 @@ from skyfi_mcp.api.models import (
     ApiProvider,
     ArchiveOrderRequest,
     DeliverableType,
-    DeliveryDriver,
     FeasibilityRequest,
     GetArchivesRequest,
     NotificationRequest,
-    OrderRedeliveryRequest,
     OrderType,
-    PassPredictionRequest,
-    PricingRequest,
     ProductType,
     ResolutionLevel,
     SarPolarisation,
@@ -48,7 +43,7 @@ from skyfi_mcp.api.models import (
 )
 from skyfi_mcp.auth.config import AuthConfig, load_local_config
 from skyfi_mcp.auth.tokens import ConfirmationTokenManager
-from skyfi_mcp.osm.geocoder import geocode_to_wkt, reverse_geocode, search_nearby_features
+from skyfi_mcp.osm.geocoder import geocode_to_wkt, search_nearby_features
 from skyfi_mcp.webhooks.store import WebhookEventStore
 
 logger = logging.getLogger("skyfi_mcp")
@@ -150,12 +145,13 @@ async def search_satellite_imagery(
         max_cloud_coverage_percent: Maximum cloud cover (0-100).
         max_off_nadir_angle: Maximum off-nadir angle (0-50).
         resolutions: Filter by resolution: LOW, MEDIUM, HIGH, VERY_HIGH, ULTRA_HIGH.
-        product_types: Filter by product: DAY, NIGHT, VIDEO, SAR, HYPERSPECTRAL, MULTISPECTRAL, STEREO.
+        product_types: Filter by product (DAY, NIGHT, VIDEO, SAR, HYPERSPECTRAL,
+            MULTISPECTRAL, STEREO).
         providers: Filter by provider: PLANET, UMBRA, SATELLOGIC, etc.
         open_data: If true, only return free open data imagery (e.g., Sentinel-2).
         min_overlap_ratio: Minimum overlap between image and AOI (0-1).
         page_size: Number of results per page (default 20, max 100).
-        next_page: Pagination cursor from a previous search response. Pass this to get the next page.
+        next_page: Pagination cursor from previous search. Pass to get next page.
         api_key: SkyFi API key (for cloud mode; optional for local mode).
 
     Returns:
@@ -176,8 +172,13 @@ async def search_satellite_imagery(
             geo_result = await geocode_to_wkt(location)
             if "error" in geo_result:
                 return json.dumps({
-                    "error": f"Could not geocode '{location}': {geo_result['error']}",
-                    "suggestion": "Try a more specific location name or provide a WKT polygon directly.",
+                    "error": (
+                        f"Could not geocode '{location}': {geo_result['error']}"
+                    ),
+                    "suggestion": (
+                        "Try a more specific location name or provide "
+                        "a WKT polygon directly."
+                    ),
                 })
             aoi = geo_result["wkt"]
             location_info = {
@@ -297,7 +298,10 @@ async def check_feasibility(
         else:
             geo_result = await geocode_to_wkt(location)
             if "error" in geo_result:
-                return json.dumps({"error": f"Could not geocode '{location}': {geo_result['error']}"})
+                error_msg = (
+                    f"Could not geocode '{location}': {geo_result['error']}"
+                )
+                return json.dumps({"error": error_msg})
             aoi = geo_result["wkt"]
 
         request = FeasibilityRequest(
@@ -326,8 +330,14 @@ async def check_feasibility(
                     if ctx:
                         await ctx.report_progress(i + 1, max_polls)
                     await asyncio.sleep(3)
-                    poll_data = await client.get_feasibility_result(feasibility_id)
-                    if poll_data.get("overallScore") or poll_data.get("status") in ("COMPLETE", "ERROR"):
+                    poll_data = await client.get_feasibility_result(
+                        feasibility_id
+                    )
+                    status = poll_data.get("status")
+                    if (
+                        poll_data.get("overallScore")
+                        or status in ("COMPLETE", "ERROR")
+                    ):
                         result = poll_data
                         if ctx:
                             await ctx.report_progress(max_polls, max_polls)
@@ -345,9 +355,19 @@ async def check_feasibility(
                 "feasibility_id": feasibility_id,
                 "status": "complete",
                 "valid_until": result.valid_until,
-                "overall_feasibility_score": score.feasibility if score else None,
-                "weather_score": score.weather_score.weather_score if score and score.weather_score else None,
-                "provider_score": score.provider_score.score if score and score.provider_score else None,
+                "overall_feasibility_score": (
+                    score.feasibility if score else None
+                ),
+                "weather_score": (
+                    score.weather_score.weather_score
+                    if score and score.weather_score
+                    else None
+                ),
+                "provider_score": (
+                    score.provider_score.score
+                    if score and score.provider_score
+                    else None
+                ),
             }
         else:
             output = {
@@ -356,7 +376,10 @@ async def check_feasibility(
                 "message": "Feasibility check still processing. Try again in a few seconds.",
             }
 
-        output["note"] = "This is a read-only feasibility check. Use preview_order when ready to order."
+        output["note"] = (
+            "This is a read-only feasibility check. "
+            "Use preview_order when ready to order."
+        )
         return json.dumps(output, indent=2, default=str)
 
     except Exception as e:
@@ -402,7 +425,10 @@ async def get_pricing_overview(
 
         return json.dumps({
             "pricing": pricing,
-            "note": "These are general pricing tiers. Use preview_order for exact pricing on a specific image or tasking request.",
+            "note": (
+                "These are general pricing tiers. "
+                "Use preview_order for exact pricing."
+            ),
         }, indent=2)
 
     except Exception as e:
@@ -464,27 +490,42 @@ async def preview_order(
         else:
             geo_result = await geocode_to_wkt(location)
             if "error" in geo_result:
-                return json.dumps({"error": f"Could not geocode '{location}': {geo_result['error']}"})
+                error_msg = (
+                    f"Could not geocode '{location}': {geo_result['error']}"
+                )
+                return json.dumps({"error": error_msg})
             aoi = geo_result["wkt"]
 
         order_type_upper = order_type.upper()
 
         if order_type_upper == "ARCHIVE":
             if not archive_id:
-                return json.dumps({"error": "archive_id is required for ARCHIVE orders."})
+                msg = "archive_id is required for ARCHIVE orders."
+                return json.dumps({"error": msg})
             return await _preview_archive_order(aoi, archive_id, api_key)
 
         elif order_type_upper == "TASKING":
             if not all([window_start, window_end, product_type, resolution]):
-                return json.dumps({
-                    "error": "window_start, window_end, product_type, and resolution are all required for TASKING orders."
-                })
+                msg = (
+                    "window_start, window_end, product_type, and resolution "
+                    "are all required for TASKING orders."
+                )
+                return json.dumps({"error": msg})
             return await _preview_tasking_order(
-                aoi, window_start, window_end, product_type, resolution,
-                max_cloud_coverage_percent, priority_item, required_provider, api_key, ctx,
+                aoi,
+                window_start,
+                window_end,
+                product_type,
+                resolution,
+                max_cloud_coverage_percent,
+                priority_item,
+                required_provider,
+                api_key,
+                ctx,
             )
         else:
-            return json.dumps({"error": f"Invalid order_type '{order_type}'. Must be ARCHIVE or TASKING."})
+            msg = f"Invalid order_type '{order_type}'. Must be ARCHIVE or TASKING."
+            return json.dumps({"error": msg})
 
     except Exception as e:
         return _format_error(e)
@@ -567,8 +608,14 @@ async def _preview_tasking_order(
                 if ctx:
                     await ctx.report_progress(i + 1, max_polls)
                 await asyncio.sleep(3)
-                poll_data = await client.get_feasibility_result(feasibility_id)
-                if poll_data.get("overallScore") or poll_data.get("status") in ("COMPLETE", "ERROR"):
+                poll_data = await client.get_feasibility_result(
+                    feasibility_id
+                )
+                status = poll_data.get("status")
+                if (
+                    poll_data.get("overallScore")
+                    or status in ("COMPLETE", "ERROR")
+                ):
                     feas_result = poll_data
                     if ctx:
                         await ctx.report_progress(max_polls, max_polls)
@@ -591,8 +638,16 @@ async def _preview_tasking_order(
             "feasibility_id": feasibility_id,
             "status": "complete",
             "overall_score": score.feasibility if score else None,
-            "weather_score": score.weather_score.weather_score if score and score.weather_score else None,
-            "provider_score": score.provider_score.score if score and score.provider_score else None,
+            "weather_score": (
+                score.weather_score.weather_score
+                if score and score.weather_score
+                else None
+            ),
+            "provider_score": (
+                score.provider_score.score
+                if score and score.provider_score
+                else None
+            ),
         }
 
     ctx = {
@@ -614,10 +669,14 @@ async def _preview_tasking_order(
         "pricing_matrix": pricing,
         "confirmation_token": confirmation_token,
         "token_valid_for_seconds": tasking_token_manager.ttl_seconds,
-        "token_note": "Tasking tokens are valid for 24 hours to allow time for feasibility review.",
+        "token_note": (
+            "Tasking tokens are valid for 24 hours to allow time for "
+            "feasibility review."
+        ),
         "instructions": (
             "Present the feasibility results and pricing to the user. "
-            "If they approve, call confirm_order with the confirmation_token and order_type='TASKING'."
+            "If they approve, call confirm_order with the "
+            "confirmation_token and order_type='TASKING'."
         ),
     }, indent=2, default=str)
 
@@ -704,9 +763,13 @@ async def confirm_order(
     if order_type_upper == "ARCHIVE":
         valid, msg = archive_token_manager.validate_token(confirmation_token, "order")
     elif order_type_upper == "TASKING":
-        valid, msg = tasking_token_manager.validate_token(confirmation_token, "order")
+        valid, msg = tasking_token_manager.validate_token(
+            confirmation_token, "order"
+        )
     else:
-        valid, msg = False, f"Invalid order_type '{order_type}'"
+        valid, msg = (
+            False, f"Invalid order_type '{order_type}'"
+        )
 
     if not valid:
         return json.dumps({
@@ -724,12 +787,16 @@ async def confirm_order(
         else:
             geo_result = await geocode_to_wkt(location)
             if "error" in geo_result:
-                return json.dumps({"error": f"Could not geocode '{location}': {geo_result['error']}"})
+                error_msg = (
+                    f"Could not geocode '{location}': {geo_result['error']}"
+                )
+                return json.dumps({"error": error_msg})
             aoi = geo_result["wkt"]
 
         if order_type_upper == "ARCHIVE":
             if not archive_id:
-                return json.dumps({"error": "archive_id is required for ARCHIVE orders."})
+                msg = "archive_id is required for ARCHIVE orders."
+                return json.dumps({"error": msg})
 
             request = ArchiveOrderRequest(
                 aoi=aoi,
@@ -759,9 +826,11 @@ async def confirm_order(
 
         elif order_type_upper == "TASKING":
             if not all([window_start, window_end, product_type, resolution]):
-                return json.dumps({
-                    "error": "window_start, window_end, product_type, and resolution are all required for TASKING orders."
-                })
+                msg = (
+                    "window_start, window_end, product_type, and resolution "
+                    "are all required for TASKING orders."
+                )
+                return json.dumps({"error": msg})
 
             request = TaskingOrderRequest(
                 aoi=aoi,
@@ -778,7 +847,11 @@ async def confirm_order(
                 maxCloudCoveragePercent=max_cloud_coverage_percent,
                 maxOffNadirAngle=max_off_nadir_angle,
                 requiredProvider=ApiProvider(required_provider) if required_provider else None,
-                sarProductTypes=[SarProductType(s) for s in sar_product_types] if sar_product_types else None,
+                sarProductTypes=(
+                    [SarProductType(s) for s in sar_product_types]
+                    if sar_product_types
+                    else None
+                ),
                 sarPolarisation=SarPolarisation(sar_polarisation) if sar_polarisation else None,
                 sarGrazingAngleMin=sar_grazing_angle_min,
                 sarGrazingAngleMax=sar_grazing_angle_max,
@@ -807,7 +880,11 @@ async def confirm_order(
             }, indent=2)
 
         else:
-            return json.dumps({"error": f"Invalid order_type '{order_type}'. Must be ARCHIVE or TASKING."})
+            msg = (
+                f"Invalid order_type '{order_type}'. "
+                "Must be ARCHIVE or TASKING."
+            )
+            return json.dumps({"error": msg})
 
     except Exception as e:
         return _format_error(e)
@@ -980,7 +1057,11 @@ async def setup_area_monitoring(
 
         if action_lower == "create":
             if not location or not webhook_url:
-                return json.dumps({"error": "Both 'location' and 'webhook_url' are required for create action."})
+                msg = (
+                    "Both 'location' and 'webhook_url' are required for "
+                    "create action."
+                )
+                return json.dumps({"error": msg})
 
             # Geocode if needed
             if _is_wkt(location):
@@ -988,7 +1069,10 @@ async def setup_area_monitoring(
             else:
                 geo_result = await geocode_to_wkt(location)
                 if "error" in geo_result:
-                    return json.dumps({"error": f"Could not geocode '{location}': {geo_result['error']}"})
+                    error_msg = (
+                        f"Could not geocode '{location}': {geo_result['error']}"
+                    )
+                    return json.dumps({"error": error_msg})
                 aoi = geo_result["wkt"]
 
             request = NotificationRequest(
@@ -1065,9 +1149,11 @@ async def setup_area_monitoring(
             })
 
         else:
-            return json.dumps({
-                "error": f"Invalid action '{action}'. Must be one of: create, list, history, delete."
-            })
+            msg = (
+                f"Invalid action '{action}'. "
+                "Must be one of: create, list, history, delete."
+            )
+            return json.dumps({"error": msg})
 
     except Exception as e:
         return _format_error(e)

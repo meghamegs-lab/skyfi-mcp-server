@@ -11,17 +11,17 @@ import time
 
 import pytest
 
-from skyfi_mcp.auth.tokens import ConfirmationTokenManager
 from skyfi_mcp.api.models import (
     ArchiveOrderRequest,
+    DeliveryDriver,
     FeasibilityRequest,
     GetArchivesRequest,
     PassPredictionRequest,
     PricingRequest,
     ProductType,
     TaskingOrderRequest,
-    DeliveryDriver,
 )
+from skyfi_mcp.auth.tokens import ConfirmationTokenManager
 from skyfi_mcp.webhooks.store import WebhookEventStore
 
 
@@ -177,7 +177,9 @@ class TestE093ResearchAgentFlow:
         aoi = "POLYGON((-118.42 33.93, -118.38 33.93, -118.38 33.95, -118.42 33.95, -118.42 33.93))"
 
         # Build search request
-        search = GetArchivesRequest(aoi=aoi, from_date="2024-01-01", product_types=[ProductType.DAY])
+        search = GetArchivesRequest(
+            aoi=aoi, from_date="2024-01-01", product_types=[ProductType.DAY]
+        )
         assert search.aoi == aoi
 
         # Build feasibility request

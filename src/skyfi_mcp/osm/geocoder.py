@@ -7,8 +7,8 @@ Converts results to WKT polygons suitable for SkyFi API AOI parameters.
 from __future__ import annotations
 
 import httpx
-from shapely.geometry import box, shape
 from shapely import wkt as shapely_wkt
+from shapely.geometry import box, shape
 
 NOMINATIM_URL = "https://nominatim.openstreetmap.org"
 USER_AGENT = "SkyFi-MCP-Server/0.1.0 (https://github.com/skyfi/skyfi-mcp-server)"

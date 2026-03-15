@@ -6,15 +6,13 @@ tool registration, annotations, and the WKT detection logic.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from types import SimpleNamespace
-from unittest.mock import MagicMock
 
-import pytest
-
-from skyfi_mcp.server import _format_error, _format_search_results, _is_wkt, mcp
 from skyfi_mcp.api.client import SkyFiAPIError
 from skyfi_mcp.api.models import ApiProvider, ProductType
+from skyfi_mcp.server import _format_error, _format_search_results, _is_wkt, mcp
 
 
 class TestIsWkt:
@@ -158,8 +156,6 @@ class TestFormatSearchResults:
         assert "aoi_wkt" in parsed
         assert parsed["aoi_wkt"] == aoi
 
-
-import asyncio
 
 _loop = asyncio.new_event_loop()
 

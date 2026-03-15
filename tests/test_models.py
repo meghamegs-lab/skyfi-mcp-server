@@ -124,7 +124,11 @@ class TestArchiveModel:
         archive = Archive(**data)
         dumped = archive.model_dump(by_alias=True)
         assert "archiveId" in dumped
-        assert "offNadirAngle" in dumped or "off_nadir_angle" in dumped or archive.off_nadir_angle is None
+        assert (
+            "offNadirAngle" in dumped
+            or "off_nadir_angle" in dumped
+            or archive.off_nadir_angle is None
+        )
 
 
 class TestGetArchivesRequest:
