@@ -27,7 +27,6 @@ from skyfi_mcp.api.models import (
     OrderType,
     PassPredictionRequest,
     PassPredictionResponse,
-    PricingRequest,
     SortColumn,
     SortDirection,
     StatusResponse,

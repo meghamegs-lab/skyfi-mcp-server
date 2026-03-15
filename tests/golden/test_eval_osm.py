@@ -6,11 +6,9 @@ All HTTP calls are intercepted by respx — no live network required.
 
 from __future__ import annotations
 
-import json
-
+import httpx
 import pytest
 import respx
-import httpx
 
 from skyfi_mcp.osm.geocoder import (
     NOMINATIM_URL,
@@ -35,7 +33,15 @@ def nominatim_suez_canal():
             "boundingbox": ["29.9", "31.3", "32.2", "32.6"],
             "geojson": {
                 "type": "Polygon",
-                "coordinates": [[[32.2, 29.9], [32.6, 29.9], [32.6, 31.3], [32.2, 31.3], [32.2, 29.9]]],
+                "coordinates": [
+                    [
+                        [32.2, 29.9],
+                        [32.6, 29.9],
+                        [32.6, 31.3],
+                        [32.2, 31.3],
+                        [32.2, 29.9],
+                    ]
+                ],
             },
         }
     ]

@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 import time
-from pathlib import Path
 
-import pytest
-
-from skyfi_mcp.webhooks.store import WebhookEventStore, WebhookEvent
+from skyfi_mcp.webhooks.store import WebhookEvent, WebhookEventStore
 
 
 class TestWebhookEventStore:

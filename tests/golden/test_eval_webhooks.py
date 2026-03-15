@@ -5,12 +5,11 @@ These evals verify the full webhook lifecycle: receive → store → poll → re
 
 from __future__ import annotations
 
-import json
 import time
 
 import pytest
 
-from skyfi_mcp.webhooks.store import WebhookEventStore, WebhookEvent
+from skyfi_mcp.webhooks.store import WebhookEvent, WebhookEventStore
 
 
 @pytest.fixture

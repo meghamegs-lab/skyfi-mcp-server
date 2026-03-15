@@ -58,7 +58,10 @@ class WebhookEventStore:
         self._cleanup()
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
-                "INSERT INTO webhook_events (notification_id, payload, received_at) VALUES (?, ?, ?)",
+                (
+                    "INSERT INTO webhook_events "
+                    "(notification_id, payload, received_at) VALUES (?, ?, ?)"
+                ),
                 (notification_id, json.dumps(payload), time.time()),
             )
             return cursor.lastrowid or 0

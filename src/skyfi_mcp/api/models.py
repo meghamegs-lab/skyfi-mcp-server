@@ -5,7 +5,7 @@ Generated from https://app.skyfi.com/platform-api/openapi.json (OpenAPI 3.1.0).
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 # ── Enums ───────────────────────────────────────────────────────────────────────
 
 
-class ApiProvider(str, Enum):
+class ApiProvider(StrEnum):
     """Satellite imagery providers available through SkyFi."""
 
     SIWEI = "SIWEI"
@@ -33,7 +33,7 @@ class ApiProvider(str, Enum):
     ICEYE_US = "ICEYE_US"
 
 
-class ProductType(str, Enum):
+class ProductType(StrEnum):
     """Satellite product types."""
 
     DAY = "DAY"
@@ -46,7 +46,7 @@ class ProductType(str, Enum):
     BASEMAP = "BASEMAP"
 
 
-class ResolutionLevel(str, Enum):
+class ResolutionLevel(StrEnum):
     """Resolution filter levels."""
 
     LOW = "LOW"
@@ -56,7 +56,7 @@ class ResolutionLevel(str, Enum):
     ULTRA_HIGH = "ULTRA_HIGH"
 
 
-class DeliveryDriver(str, Enum):
+class DeliveryDriver(StrEnum):
     """Delivery destination drivers."""
 
     GS = "GS"
@@ -69,7 +69,7 @@ class DeliveryDriver(str, Enum):
     NONE = "NONE"
 
 
-class DeliveryStatus(str, Enum):
+class DeliveryStatus(StrEnum):
     """Order delivery status progression."""
 
     CREATED = "CREATED"
@@ -88,7 +88,7 @@ class DeliveryStatus(str, Enum):
     INTERNAL_IMAGE_PROCESSING_PENDING = "INTERNAL_IMAGE_PROCESSING_PENDING"
 
 
-class DeliverableType(str, Enum):
+class DeliverableType(StrEnum):
     """Types of downloadable deliverables."""
 
     IMAGE = "image"
@@ -97,14 +97,14 @@ class DeliverableType(str, Enum):
     BABA = "baba"
 
 
-class OrderType(str, Enum):
+class OrderType(StrEnum):
     """Order types."""
 
     ARCHIVE = "ARCHIVE"
     TASKING = "TASKING"
 
 
-class FeasibilityCheckStatus(str, Enum):
+class FeasibilityCheckStatus(StrEnum):
     """Feasibility task processing status."""
 
     PENDING = "PENDING"
@@ -113,7 +113,7 @@ class FeasibilityCheckStatus(str, Enum):
     ERROR = "ERROR"
 
 
-class SortColumn(str, Enum):
+class SortColumn(StrEnum):
     """Sortable columns for order listing."""
 
     CREATED_AT = "created_at"
@@ -122,21 +122,21 @@ class SortColumn(str, Enum):
     STATUS = "status"
 
 
-class SortDirection(str, Enum):
+class SortDirection(StrEnum):
     """Sort direction."""
 
     ASC = "asc"
     DESC = "desc"
 
 
-class SarPolarisation(str, Enum):
+class SarPolarisation(StrEnum):
     """SAR polarisation options."""
 
     HH = "HH"
     VV = "VV"
 
 
-class SarProductType(str, Enum):
+class SarProductType(StrEnum):
     """SAR-specific product types."""
 
     GEC = "GEC"
@@ -155,7 +155,9 @@ class Archive(BaseModel):
     provider: ApiProvider
     constellation: str
     product_type: ProductType = Field(alias="productType")
-    platform_resolution: float = Field(alias="platformResolution", description="Nadir resolution in cm")
+    platform_resolution: float = Field(
+        alias="platformResolution", description="Nadir resolution in cm"
+    )
     resolution: str
     capture_timestamp: str = Field(alias="captureTimestamp")
     cloud_coverage_percent: float | None = Field(None, alias="cloudCoveragePercent")
@@ -191,7 +193,9 @@ class GetArchivesRequest(BaseModel):
     aoi: str = Field(description="WKT representation of area of interest")
     from_date: str | None = Field(None, alias="fromDate", description="ISO datetime with timezone")
     to_date: str | None = Field(None, alias="toDate", description="ISO datetime with timezone")
-    max_cloud_coverage_percent: float | None = Field(None, alias="maxCloudCoveragePercent", ge=0, le=100)
+    max_cloud_coverage_percent: float | None = Field(
+        None, alias="maxCloudCoveragePercent", ge=0, le=100
+    )
     max_off_nadir_angle: float | None = Field(None, alias="maxOffNadirAngle", ge=0, le=50)
     resolutions: list[ResolutionLevel] | None = None
     product_types: list[ProductType] | None = Field(None, alias="productTypes")
@@ -289,7 +293,9 @@ class TaskingOrderRequest(BaseModel):
     metadata: dict[str, Any] | None = None
     webhook_url: str | None = Field(None, alias="webhookUrl")
     priority_item: bool | None = Field(False, alias="priorityItem")
-    max_cloud_coverage_percent: int | None = Field(20, alias="maxCloudCoveragePercent", ge=0, le=100)
+    max_cloud_coverage_percent: int | None = Field(
+        20, alias="maxCloudCoveragePercent", ge=0, le=100
+    )
     max_off_nadir_angle: int | None = Field(30, alias="maxOffNadirAngle", ge=0, le=45)
     required_provider: ApiProvider | None = Field(None, alias="requiredProvider")
     # SAR-specific optional parameters

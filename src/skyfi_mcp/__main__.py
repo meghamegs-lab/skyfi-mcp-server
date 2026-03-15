@@ -199,7 +199,7 @@ def _create_combined_app(mcp_server):
         get_account_info,
     )
 
-    _TOOL_REGISTRY = {
+    _tool_registry = {
         "search_satellite_imagery": search_satellite_imagery,
         "check_feasibility": check_feasibility,
         "get_pricing_overview": get_pricing_overview,
@@ -220,10 +220,10 @@ def _create_combined_app(mcp_server):
         The Cloudflare Worker proxies each tool call here as:
             POST /tool/<tool_name>  { ...args, api_key?: "..." }
         """
-        if tool_name not in _TOOL_REGISTRY:
+        if tool_name not in _tool_registry:
             await _json_response(scope, receive, send, {
                 "error": f"Unknown tool: {tool_name}",
-                "available_tools": list(_TOOL_REGISTRY.keys()),
+                "available_tools": list(_tool_registry.keys()),
             }, 404)
             return
 
@@ -234,7 +234,7 @@ def _create_combined_app(mcp_server):
             await _json_response(scope, receive, send, {"error": "Invalid JSON body"}, 400)
             return
 
-        tool_fn = _TOOL_REGISTRY[tool_name]
+        tool_fn = _tool_registry[tool_name]
         try:
             result = await tool_fn(**args)
         except TypeError as e:

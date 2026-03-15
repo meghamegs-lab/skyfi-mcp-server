@@ -23,7 +23,10 @@ class ConfirmationTokenManager:
     """
 
     def __init__(self, secret: str | None = None, ttl_seconds: int = 300):
-        self.secret = (secret or os.environ.get("SKYFI_TOKEN_SECRET", "skyfi-mcp-default-secret")).encode()
+        default_secret = os.environ.get(
+            "SKYFI_TOKEN_SECRET", "skyfi-mcp-default-secret"
+        )
+        self.secret = (secret or default_secret).encode()
         self.ttl_seconds = ttl_seconds
 
     def create_token(self, action: str, context: dict) -> str:
