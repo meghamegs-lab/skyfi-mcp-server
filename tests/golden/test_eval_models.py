@@ -12,7 +12,6 @@ from pydantic import ValidationError
 from skyfi_mcp.api.models import (
     ApiProvider,
     ArchiveOrderRequest,
-    ArchiveSearchResult,
     DeliverableType,
     DeliveryDriver,
     DeliveryStatus,
@@ -76,13 +75,13 @@ class TestE002GetArchivesRequest:
             aoi="POLYGON((0 0,1 0,1 1,0 1,0 0))",
             from_date="2024-01-01",
             to_date="2024-12-31",
-            product_type=ProductType.DAY,
-            provider=ApiProvider.PLANET,
-            resolution_level=ResolutionLevel.VERY_HIGH,
-            max_cloud_coverage=10,
+            product_types=[ProductType.DAY],
+            providers=[ApiProvider.PLANET],
+            resolutions=[ResolutionLevel.VERY_HIGH],
+            max_cloud_coverage_percent=10,
         )
-        assert req.product_type == ProductType.DAY
-        assert req.provider == ApiProvider.PLANET
+        assert req.product_types == [ProductType.DAY]
+        assert req.providers == [ApiProvider.PLANET]
 
     def test_serialization_uses_camel_case(self):
         req = GetArchivesRequest(
@@ -133,12 +132,20 @@ class TestE011FeasibilityRequest:
         req = FeasibilityRequest(
             aoi="POLYGON((0 0,1 0,1 1,0 1,0 0))",
             product_type=ProductType.DAY,
+            resolution="1.0m",
+            start_date="2024-06-01T00:00:00Z",
+            end_date="2024-06-30T23:59:59Z",
         )
         assert req.product_type == ProductType.DAY
 
     def test_feasibility_requires_aoi(self):
         with pytest.raises(ValidationError):
-            FeasibilityRequest(product_type=ProductType.DAY)
+            FeasibilityRequest(
+                product_type=ProductType.DAY,
+                resolution="1.0m",
+                start_date="2024-06-01T00:00:00Z",
+                end_date="2024-06-30T23:59:59Z",
+            )
 
 
 # ── E-012: TaskingOrderRequest Validation ────────────────────────────────────
@@ -150,6 +157,9 @@ class TestE012TaskingOrderRequest:
         req = TaskingOrderRequest(
             aoi="POLYGON((0 0,1 0,1 1,0 1,0 0))",
             product_type=ProductType.DAY,
+            resolution="1.0m",
+            window_start="2024-07-01T00:00:00Z",
+            window_end="2024-07-15T23:59:59Z",
             delivery_driver=DeliveryDriver.GS,
         )
         assert req.product_type == ProductType.DAY
@@ -159,6 +169,9 @@ class TestE012TaskingOrderRequest:
             TaskingOrderRequest(
                 aoi="POLYGON((0 0,1 0,1 1,0 1,0 0))",
                 product_type=ProductType.DAY,
+                resolution="1.0m",
+                window_start="2024-07-01T00:00:00Z",
+                window_end="2024-07-15T23:59:59Z",
                 delivery_driver="INVALID_DRIVER",
             )
 
@@ -184,8 +197,7 @@ class TestE014OrderRedeliveryRequest:
     def test_valid_redelivery_s3(self):
         req = OrderRedeliveryRequest(
             delivery_driver=DeliveryDriver.S3,
-            bucket_name="my-bucket",
-            path_prefix="orders/",
+            delivery_params={"bucket_name": "my-bucket", "path_prefix": "orders/"},
         )
         assert req.delivery_driver == DeliveryDriver.S3
 
@@ -199,13 +211,13 @@ class TestE015ModelRoundTrip:
         original = GetArchivesRequest(
             aoi="POLYGON((10 20,11 20,11 21,10 21,10 20))",
             from_date="2024-06-01",
-            product_type=ProductType.DAY,
-            max_cloud_coverage=15,
+            product_types=[ProductType.DAY],
+            max_cloud_coverage_percent=15,
         )
         dumped = original.model_dump(exclude_none=True)
         restored = GetArchivesRequest.model_validate(dumped)
         assert restored.aoi == original.aoi
-        assert restored.product_type == original.product_type
+        assert restored.product_types == original.product_types
 
     def test_archive_order_roundtrip(self):
         original = ArchiveOrderRequest(
@@ -220,6 +232,9 @@ class TestE015ModelRoundTrip:
         original = TaskingOrderRequest(
             aoi="POLYGON((0 0,1 0,1 1,0 1,0 0))",
             product_type=ProductType.SAR,
+            resolution="3.0m",
+            window_start="2024-08-01T00:00:00Z",
+            window_end="2024-08-15T23:59:59Z",
             delivery_driver=DeliveryDriver.GS,
         )
         dumped = original.model_dump(exclude_none=True)

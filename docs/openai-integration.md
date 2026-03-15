@@ -346,10 +346,9 @@ tools=[
 
 ```python
 # The MCP tools automatically include tools like:
-# - get_pricing_options: Returns confirmation_token for orders
-# - check_feasibility: Returns token for tasking orders
-# - create_archive_order: Requires valid token
-# - create_tasking_order: Requires valid token
+# - preview_order: Returns confirmation_token for orders
+# - check_feasibility: Returns token for tasking orders (auto-polls)
+# - confirm_order: Requires valid confirmation_token to place orders
 
 response = client.beta.messages.create(
     model="gpt-4",
@@ -366,7 +365,7 @@ response = client.beta.messages.create(
         "headers": {"Authorization": f"Bearer {SKYFI_API_KEY}"}
     }]
 )
-# GPT-4 will call get_pricing_options and return pricing_token
+# GPT-4 will call preview_order and return confirmation_token
 ```
 
 ### Search with Filters
@@ -383,6 +382,8 @@ response = client.beta.messages.create(
             - Cloud cover: < 5%
             - Resolution: VERY_HIGH or ULTRA_HIGH
             - Date range: Last 7 days
+
+            Use search_satellite_imagery which auto-geocodes the location.
             """
         }
     ],

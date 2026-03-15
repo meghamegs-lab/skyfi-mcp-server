@@ -43,25 +43,21 @@ export const skyfiMcpConfig = {
 export const SKYFI_TOOLS = {
   search: [
     "geocode_location",
-    "search_archive",
-    "search_archive_next_page",
-    "get_archive_details",
+    "search_satellite_imagery",
+    "search_nearby_pois",
   ],
   pricing: [
-    "get_pricing_options",
+    "preview_order",
     "check_feasibility",
-    "predict_satellite_passes",
+    "get_pricing_overview",
   ],
   orders: [
-    "create_archive_order",
-    "create_tasking_order",
-    "list_orders",
-    "get_order_status",
+    "confirm_order",
+    "check_order_status",
     "get_download_url",
   ],
   monitoring: [
-    "create_aoi_notification",
-    "list_notifications",
+    "setup_area_monitoring",
     "check_new_images",
   ],
   account: ["get_account_info"],
@@ -114,7 +110,11 @@ You can:
 - Place orders (always get user confirmation first)
 - Monitor areas for new imagery
 
-Always present pricing to the user and get explicit approval before placing orders.`,
+Workflow:
+1. Use search_satellite_imagery to find images (auto-geocodes place names)
+2. Use preview_order to get pricing and confirmation_token
+3. Present pricing to the user and get explicit approval
+4. Use confirm_order with confirmation_token to place the order`,
       messages: conversationMessages,
       tools: [skyfiMcpConfig] as any,
     });

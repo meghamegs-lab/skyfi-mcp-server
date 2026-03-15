@@ -56,14 +56,14 @@ SKYFI_TOOLS = [
         }
     },
     {
-        "name": "search_archive",
-        "description": "Search the SkyFi satellite image catalog",
+        "name": "search_satellite_imagery",
+        "description": "Search the SkyFi satellite image catalog with auto-geocoding support",
         "parameters": {
             "type": "object",
             "properties": {
-                "aoi": {
+                "location_name": {
                     "type": "string",
-                    "description": "Area of interest in WKT format"
+                    "description": "Place name (e.g., 'Manhattan') or WKT format"
                 },
                 "from_date": {
                     "type": "string",
@@ -93,11 +93,11 @@ SKYFI_TOOLS = [
                     "default": 20
                 }
             },
-            "required": ["aoi"]
+            "required": ["location_name"]
         }
     },
     {
-        "name": "get_pricing_options",
+        "name": "preview_order",
         "description": "Get pricing options and confirmation token for orders",
         "parameters": {
             "type": "object",
@@ -144,8 +144,8 @@ SKYFI_TOOLS = [
         }
     },
     {
-        "name": "create_archive_order",
-        "description": "Place an order for existing archived satellite imagery",
+        "name": "confirm_order",
+        "description": "Place an order for archived or tasking satellite imagery",
         "parameters": {
             "type": "object",
             "properties": {
@@ -153,13 +153,18 @@ SKYFI_TOOLS = [
                     "type": "string",
                     "description": "Area of interest in WKT format"
                 },
+                "order_type": {
+                    "type": "string",
+                    "description": "ARCHIVE or TASKING",
+                    "enum": ["ARCHIVE", "TASKING"]
+                },
                 "archive_id": {
                     "type": "string",
-                    "description": "The archive image UUID to order"
+                    "description": "The archive image UUID (for ARCHIVE orders)"
                 },
                 "confirmation_token": {
                     "type": "string",
-                    "description": "Token from get_pricing_options (REQUIRED)"
+                    "description": "Token from preview_order (REQUIRED)"
                 },
                 "label": {
                     "type": "string",
@@ -167,15 +172,19 @@ SKYFI_TOOLS = [
                     "default": "Gemini Order"
                 }
             },
-            "required": ["aoi", "archive_id", "confirmation_token"]
+            "required": ["confirmation_token"]
         }
     },
     {
-        "name": "list_orders",
-        "description": "List your previous SkyFi orders",
+        "name": "check_order_status",
+        "description": "List your previous SkyFi orders or check a specific order",
         "parameters": {
             "type": "object",
             "properties": {
+                "order_id": {
+                    "type": "string",
+                    "description": "Optional order ID to check status"
+                },
                 "page_size": {
                     "type": "integer",
                     "description": "Orders per page (default 25)",
@@ -363,21 +372,21 @@ tools = [
     genai.types.Tool(
         function_declarations=[
             genai.types.FunctionDeclaration(
-                name="search_archive",
-                description="Search the SkyFi satellite image catalog",
+                name="search_satellite_imagery",
+                description="Search the SkyFi satellite image catalog with auto-geocoding",
                 parameters={
                     "type": "object",
                     "properties": {
-                        "aoi": {
+                        "location_name": {
                             "type": "string",
-                            "description": "Area of interest in WKT format"
+                            "description": "Place name (auto-geocoded) or WKT format"
                         },
                         "max_cloud_coverage_percent": {
                             "type": "number",
                             "description": "Maximum cloud cover (0-100)"
                         }
                     },
-                    "required": ["aoi"]
+                    "required": ["location_name"]
                 }
             ),
             # ... add more tools
@@ -441,11 +450,11 @@ except Exception as e:
 | Tool | Purpose | Returns |
 |------|---------|---------|
 | `geocode_location` | Convert place name to WKT | WKT polygon + coordinates |
-| `search_archive` | Find satellite imagery | List of available images |
-| `get_pricing_options` | Get pricing matrix | Prices + confirmation_token |
+| `search_satellite_imagery` | Find satellite imagery (auto-geocodes) | List of available images |
+| `preview_order` | Get pricing matrix | Prices + confirmation_token |
 | `check_feasibility` | Check tasking order feasibility | Feasibility score + token |
-| `create_archive_order` | Order existing imagery | Order ID + cost |
-| `list_orders` | View order history | Order list with status |
+| `confirm_order` | Order existing or tasking imagery | Order ID + cost |
+| `check_order_status` | View order history or check status | Order list or details |
 | `get_account_info` | Get account details | Budget + usage info |
 
 ## What's Next

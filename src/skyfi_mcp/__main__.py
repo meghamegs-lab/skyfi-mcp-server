@@ -147,6 +147,7 @@ def _create_combined_app(mcp_server):
                 "mcp": "/mcp  (MCP protocol — use an MCP client, not a browser)",
                 "health": "/health  (GET — health check)",
                 "webhook": "/webhook  (POST — SkyFi notification webhook receiver)",
+                "tool_proxy": "/tool/<name>  (POST — direct tool invocation for CF Worker proxy)",
             },
             "docs": "https://github.com/skyfi/skyfi-mcp-server",
             "note": (
@@ -160,7 +161,7 @@ def _create_combined_app(mcp_server):
             "status": "healthy",
             "service": "skyfi-mcp",
             "version": "0.1.0",
-            "tools": 21,
+            "tools": 12,
         })
 
     async def handle_webhook(scope, receive, send):
@@ -178,6 +179,88 @@ def _create_combined_app(mcp_server):
         event_id = event_store.store_event(notification_id, payload)
         logger.info("Webhook received: notification=%s, event=%s", notification_id, event_id)
         await _json_response(scope, receive, send, {"status": "received", "event_id": event_id})
+
+    # -- /tool/<name> proxy endpoints for Cloudflare Worker ------------------
+
+    # Import all tool functions from server.py so the Worker can proxy to them.
+    # Each tool function accepts keyword arguments and returns a JSON string.
+    from skyfi_mcp.server import (
+        search_satellite_imagery,
+        check_feasibility,
+        get_pricing_overview,
+        preview_order,
+        confirm_order,
+        check_order_status,
+        get_download_url,
+        setup_area_monitoring,
+        check_new_images,
+        geocode_location,
+        search_nearby_pois,
+        get_account_info,
+    )
+
+    _TOOL_REGISTRY = {
+        "search_satellite_imagery": search_satellite_imagery,
+        "check_feasibility": check_feasibility,
+        "get_pricing_overview": get_pricing_overview,
+        "preview_order": preview_order,
+        "confirm_order": confirm_order,
+        "check_order_status": check_order_status,
+        "get_download_url": get_download_url,
+        "setup_area_monitoring": setup_area_monitoring,
+        "check_new_images": check_new_images,
+        "geocode_location": geocode_location,
+        "search_nearby_pois": search_nearby_pois,
+        "get_account_info": get_account_info,
+    }
+
+    async def handle_tool_proxy(scope, receive, send, tool_name: str):
+        """Handle POST /tool/<name> — invoke an MCP tool function directly.
+
+        The Cloudflare Worker proxies each tool call here as:
+            POST /tool/<tool_name>  { ...args, api_key?: "..." }
+        """
+        if tool_name not in _TOOL_REGISTRY:
+            await _json_response(scope, receive, send, {
+                "error": f"Unknown tool: {tool_name}",
+                "available_tools": list(_TOOL_REGISTRY.keys()),
+            }, 404)
+            return
+
+        raw = await _read_body(receive)
+        try:
+            args = _json.loads(raw) if raw else {}
+        except Exception:
+            await _json_response(scope, receive, send, {"error": "Invalid JSON body"}, 400)
+            return
+
+        tool_fn = _TOOL_REGISTRY[tool_name]
+        try:
+            result = await tool_fn(**args)
+        except TypeError as e:
+            # Argument mismatch — return helpful error
+            await _json_response(scope, receive, send, {
+                "error": f"Invalid arguments for {tool_name}: {e}",
+            }, 400)
+            return
+        except Exception as e:
+            logger.exception("Tool %s raised unexpected error", tool_name)
+            await _json_response(scope, receive, send, {
+                "error": f"Tool execution error: {e}",
+            }, 500)
+            return
+
+        # Tool functions return JSON strings — send as raw text/json
+        payload = result.encode() if isinstance(result, str) else _json.dumps(result).encode()
+        await send({
+            "type": "http.response.start",
+            "status": 200,
+            "headers": [
+                [b"content-type", b"application/json"],
+                [b"content-length", str(len(payload)).encode()],
+            ],
+        })
+        await send({"type": "http.response.body", "body": payload})
 
     # -- the actual ASGI app ------------------------------------------------
 
@@ -198,6 +281,9 @@ def _create_combined_app(mcp_server):
             await handle_health(scope, receive, send)
         elif path == "/webhook" and method == "POST":
             await handle_webhook(scope, receive, send)
+        elif path.startswith("/tool/") and method == "POST":
+            tool_name = path[len("/tool/"):]
+            await handle_tool_proxy(scope, receive, send, tool_name)
         else:
             # Everything else → FastMCP (handles /mcp, SSE, etc.)
             await mcp_app(scope, receive, send)
@@ -227,7 +313,7 @@ def _handle_serve(args):
         print()
 
         app = _create_combined_app(mcp)
-        uvicorn.run(app, host=args.host, port=args.port)
+        uvicorn.run(app, host=args.host, port=args.port, ws="wsproto")
 
 
 if __name__ == "__main__":

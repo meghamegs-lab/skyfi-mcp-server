@@ -89,11 +89,11 @@ You can:
 - Monitor areas for new imagery
 
 IMPORTANT WORKFLOW:
-1. When searching: Use geocode_location first, then search_archive
-2. Before ordering: Always use get_pricing_options or check_feasibility
+1. When searching: Use search_satellite_imagery (auto-geocodes place names) or use geocode_location first
+2. Before ordering: Always use preview_order to get pricing and confirmation_token
 3. Present pricing to the user and get explicit approval
-4. Only create orders after user confirmation with a valid confirmation_token
-5. For monitoring: Use create_aoi_notification and check_new_images periodically
+4. Only create orders after user confirmation using confirm_order with a valid confirmation_token
+5. For monitoring: Use setup_area_monitoring (action=create) and check_new_images periodically
 
 Be conversational and helpful. Always explain what data you're getting.""",
         messages=conversation_history,
@@ -413,11 +413,11 @@ All SkyFi tools are automatically available:
 
 | Category | Tools |
 |----------|-------|
-| **Search** | `geocode_location`, `search_archive`, `get_archive_details` |
-| **Pricing** | `get_pricing_options`, `check_feasibility`, `predict_satellite_passes` |
-| **Orders** | `create_archive_order`, `create_tasking_order`, `list_orders` |
-| **Monitoring** | `create_aoi_notification`, `list_notifications`, `check_new_images` |
-| **Geolocation** | `reverse_geocode_location`, `search_nearby_pois` |
+| **Search** | `geocode_location`, `search_satellite_imagery`, `search_nearby_pois` |
+| **Pricing & Orders** | `preview_order`, `check_feasibility`, `confirm_order` |
+| **Orders** | `check_order_status`, `get_download_url` |
+| **Monitoring** | `setup_area_monitoring`, `check_new_images` |
+| **Pricing Overview** | `get_pricing_overview` |
 | **Account** | `get_account_info` |
 
 ## What's Next

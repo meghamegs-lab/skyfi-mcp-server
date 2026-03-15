@@ -1,0 +1,21 @@
+{
+  "name": "skyfi-mcp-worker",
+  "version": "0.1.0",
+  "description": "Cloudflare Worker — thin MCP proxy for SkyFi MCP Server",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "agents": "^0.6.0",
+    "zod": "^3.23.0",
+    "@cloudflare/workers-oauth-provider": "^0.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.0.0",
+    "typescript": "^5.5.0",
+    "wrangler": "^3.0.0"
+  }
+}

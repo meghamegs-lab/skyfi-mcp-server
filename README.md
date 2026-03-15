@@ -91,44 +91,34 @@ The server starts at `http://localhost:8000` with these endpoints:
 | `/webhook` | POST | SkyFi notification receiver |
 | `/mcp` | POST/GET | MCP protocol (for MCP clients) |
 
-## Tools Reference (22 tools)
+## Tools Reference (12 tools)
 
-### Search & Discovery
+### Search & Geospatial
 | Tool | Description |
 |------|-------------|
-| `search_archive` | Search satellite image catalog with filters (date, resolution, cloud cover, provider) |
-| `search_archive_next_page` | Paginate through search results |
-| `get_archive_details` | Full metadata for a specific archive image |
+| `search_satellite_imagery` | Search catalog with auto-geocoding, filters, and pagination |
 | `geocode_location` | Convert place names to WKT coordinates (via OpenStreetMap) |
-| `reverse_geocode_location` | Convert coordinates to place names |
 | `search_nearby_pois` | Find airports, ports, buildings near a location |
 
 ### Pricing & Feasibility
 | Tool | Description |
 |------|-------------|
-| `get_pricing_options` | Get pricing across all products/resolutions. **Returns confirmation_token.** |
-| `check_feasibility` | Assess if new capture is feasible for an area. **Returns confirmation_token.** |
-| `get_feasibility_result` | Poll for async feasibility results |
-| `predict_satellite_passes` | Upcoming satellite passes for a location |
+| `get_pricing_overview` | General pricing across all products/resolutions |
+| `check_feasibility` | Assess if new capture is feasible (auto-polls for results) |
+| `preview_order` | Exact pricing + feasibility check. **Returns confirmation_token.** |
 
 ### Ordering (Human-in-the-Loop)
 | Tool | Description |
 |------|-------------|
-| `create_archive_order` | Order existing imagery. **Requires confirmation_token.** |
-| `create_tasking_order` | Order new satellite capture. **Requires confirmation_token.** |
-| `list_orders` | View order history with pagination |
-| `get_order_status` | Detailed order status with event timeline |
+| `confirm_order` | Place archive or tasking order. **Requires confirmation_token.** |
+| `check_order_status` | View specific order or list order history |
 | `get_download_url` | Download URL for completed imagery |
-| `schedule_redelivery` | Re-deliver order to different storage |
 
 ### Monitoring & Notifications
 | Tool | Description |
 |------|-------------|
-| `create_aoi_notification` | Set up AOI monitoring with webhook |
-| `list_notifications` | List active monitors |
-| `get_notification_history` | View notification trigger history |
-| `delete_notification` | Remove a monitor |
-| `check_new_images` | Poll for new imagery events (Pulse-style) |
+| `setup_area_monitoring` | Create, list, view history, or delete AOI monitors |
+| `check_new_images` | Poll for new imagery events from webhooks |
 
 ### Account
 | Tool | Description |
@@ -140,9 +130,10 @@ The server starts at `http://localhost:8000` with these endpoints:
 Orders are protected by a confirmation token system:
 
 ```
-1. Agent calls get_pricing_options → receives confirmation_token
-2. Agent presents price to user → user says "go ahead"
-3. Agent calls create_archive_order with confirmation_token → order placed
+1. Agent calls search_satellite_imagery → finds available images
+2. Agent calls preview_order → receives pricing + confirmation_token
+3. Agent presents price to user → user says "go ahead"
+4. Agent calls confirm_order with confirmation_token → order placed
 ```
 
 Tokens are HMAC-signed, expire after 5 minutes, and are validated server-side. Order tools reject requests without a valid token. This is enforced at the server level — agents cannot bypass it.
@@ -242,7 +233,7 @@ ruff format src/ tests/
 skyfi-mcp-server/
 ├── src/skyfi_mcp/
 │   ├── __main__.py          # CLI + ASGI app composition
-│   ├── server.py            # FastMCP server with 22 tools
+│   ├── server.py            # FastMCP server with 12 outcome-oriented tools
 │   ├── api/
 │   │   ├── client.py        # Async SkyFi API client (httpx)
 │   │   └── models.py        # 57 Pydantic v2 models from OpenAPI

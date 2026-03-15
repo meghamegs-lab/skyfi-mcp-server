@@ -16,6 +16,7 @@ from skyfi_mcp.api.models import (
     ArchiveOrderRequest,
     FeasibilityRequest,
     GetArchivesRequest,
+    PassPredictionRequest,
     PricingRequest,
     ProductType,
     TaskingOrderRequest,
@@ -93,7 +94,13 @@ class TestE091FullTaskingOrderFlow:
         aoi = "POLYGON((10 20, 11 20, 11 21, 10 21, 10 20))"
 
         # Step 1: Build feasibility request
-        feas_req = FeasibilityRequest(aoi=aoi, product_type=ProductType.DAY)
+        feas_req = FeasibilityRequest(
+            aoi=aoi,
+            product_type=ProductType.DAY,
+            resolution="1.0m",
+            start_date="2024-07-01T00:00:00Z",
+            end_date="2024-07-15T23:59:59Z",
+        )
         assert feas_req.product_type == ProductType.DAY
 
         # Step 2: Get confirmation token from feasibility
@@ -110,6 +117,9 @@ class TestE091FullTaskingOrderFlow:
         order_req = TaskingOrderRequest(
             aoi=aoi,
             product_type=ProductType.DAY,
+            resolution="1.0m",
+            window_start="2024-07-01T00:00:00Z",
+            window_end="2024-07-15T23:59:59Z",
             delivery_driver=DeliveryDriver.GS,
         )
         assert order_req.product_type == ProductType.DAY
@@ -167,15 +177,25 @@ class TestE093ResearchAgentFlow:
         aoi = "POLYGON((-118.42 33.93, -118.38 33.93, -118.38 33.95, -118.42 33.95, -118.42 33.93))"
 
         # Build search request
-        search = GetArchivesRequest(aoi=aoi, from_date="2024-01-01", product_type=ProductType.DAY)
+        search = GetArchivesRequest(aoi=aoi, from_date="2024-01-01", product_types=[ProductType.DAY])
         assert search.aoi == aoi
 
         # Build feasibility request
-        feas = FeasibilityRequest(aoi=aoi, product_type=ProductType.DAY)
+        feas = FeasibilityRequest(
+            aoi=aoi,
+            product_type=ProductType.DAY,
+            resolution="0.5m",
+            start_date="2024-01-01T00:00:00Z",
+            end_date="2024-01-31T23:59:59Z",
+        )
         assert feas.aoi == aoi
 
         # Build pass prediction request
-        passes = PassPredictionRequest(aoi=aoi)
+        passes = PassPredictionRequest(
+            aoi=aoi,
+            from_date="2024-01-01T00:00:00Z",
+            to_date="2024-01-31T23:59:59Z",
+        )
         assert passes.aoi == aoi
 
         # Build pricing request

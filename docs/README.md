@@ -35,40 +35,29 @@ This directory contains comprehensive integration guides for the SkyFi MCP serve
 
 ## Available Tools
 
-All integrations provide access to the same SkyFi tools:
+All integrations provide access to the 12 core SkyFi tools:
 
-### Search & Discovery
+### Search & Discovery (2 tools)
 - `geocode_location` - Convert place names to WKT coordinates
-- `search_archive` - Find archived satellite imagery
-- `search_archive_next_page` - Paginate search results
-- `get_archive_details` - Get full image metadata
-
-### Pricing & Feasibility
-- `get_pricing_options` - Get cost estimates (returns confirmation_token)
-- `check_feasibility` - Verify tasking order feasibility
-- `predict_satellite_passes` - Find upcoming satellite passes
-
-### Orders
-- `create_archive_order` - Order existing archived imagery
-- `create_tasking_order` - Request new satellite capture
-- `list_orders` - View order history
-- `get_order_status` - Track order progress
-- `get_download_url` - Get download links
-- `schedule_redelivery` - Deliver to cloud storage
-
-### Monitoring
-- `create_aoi_notification` - Set up area monitoring
-- `list_notifications` - View active monitors
-- `get_notification_history` - See notification events
-- `check_new_images` - Check for new imagery
-- `delete_notification` - Remove monitor
-
-### Geolocation
-- `reverse_geocode_location` - Convert coordinates to place names
+- `search_satellite_imagery` - Find archived satellite imagery (includes auto-geocoding)
 - `search_nearby_pois` - Find points of interest
 
-### Account
+### Pricing & Orders (3 tools)
+- `preview_order` - Get cost estimates and confirmation_token
+- `check_feasibility` - Verify tasking order feasibility (auto-polls)
+- `confirm_order` - Place archive or tasking orders with confirmation_token
+
+### Order Management (2 tools)
+- `check_order_status` - View order history or track specific order progress
+- `get_download_url` - Get download links
+
+### Monitoring (2 tools)
+- `setup_area_monitoring` - Create/list/history/delete area monitoring
+- `check_new_images` - Check for new imagery
+
+### Utilities (2 tools)
 - `get_account_info` - Check budget and usage
+- `get_pricing_overview` - Get general pricing information
 
 ## Getting Started
 
@@ -111,41 +100,33 @@ Choose your integration above and follow the detailed guide with working example
 
 ### Search for Imagery
 
-1. Use `geocode_location` to convert place name to WKT
-2. Call `search_archive` with filters (cloud cover, date, resolution)
+1. Call `search_satellite_imagery` with location name (auto-geocodes) and filters
+2. Or use `geocode_location` first if you need coordinates
 3. Review results with pricing
-4. Optional: Use `get_archive_details` for full metadata
 
 **Example Flow:**
 ```
 "Find satellite imagery of Manhattan"
-→ geocode_location("Manhattan")
-→ search_archive(aoi=result_wkt, max_cloud_coverage_percent=10)
+→ search_satellite_imagery(location_name="Manhattan", max_cloud_coverage_percent=10)
 → [returns list of images with prices]
 ```
 
-### Order Archived Imagery
+### Search & Order Workflow
 
-1. Call `get_pricing_options` to get pricing matrix and **confirmation_token**
-2. Present pricing to user
-3. Get explicit user approval
-4. Call `create_archive_order` with confirmation_token
+1. Call `search_satellite_imagery` to find available imagery (auto-geocodes place names)
+2. Call `preview_order` to get pricing matrix and **confirmation_token**
+3. Present pricing to user
+4. Get explicit user approval
+5. Call `confirm_order` with confirmation_token and order_type (ARCHIVE or TASKING)
 
 **Important:** Never skip the confirmation_token step. Orders will be rejected without it.
 
-### Order Fresh Imagery (Tasking)
-
-1. Call `check_feasibility` to verify possibility and get **confirmation_token**
-2. Show feasibility score and pricing to user
-3. Get explicit user approval
-4. Call `create_tasking_order` with confirmation_token
-
 ### Monitor Area for New Imagery
 
-1. Call `create_aoi_notification` with location and webhook URL
+1. Call `setup_area_monitoring` with action=create, location, and webhook URL
 2. System will notify you when new imagery becomes available
 3. Use `check_new_images` to poll for updates
-4. Call `delete_notification` to stop monitoring
+4. Call `setup_area_monitoring` with action=delete to stop monitoring
 
 ## Security Best Practices
 
@@ -169,16 +150,15 @@ Choose your integration above and follow the detailed guide with working example
 - Confirm network connectivity to server
 
 ### "Confirmation Token Required"
-- Always call `get_pricing_options` or `check_feasibility` first
+- Always call `preview_order` to get the confirmation_token
 - Get the returned `confirmation_token`
-- Pass it to the order creation function
+- Pass it to `confirm_order` to place the order
 - Tokens expire after 5 minutes (see `token_valid_for_seconds`)
 
 ### Timeout on Feasibility Check
 - Normal for `check_feasibility` (may take 30+ seconds)
 - Uses polling internally
 - Long async operations will eventually complete
-- Use `get_feasibility_result` to check status
 
 ## API Response Format
 

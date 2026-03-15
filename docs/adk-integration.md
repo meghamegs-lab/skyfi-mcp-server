@@ -192,7 +192,7 @@ class SkyFiWorkflow:
 
         # Step 2: Get pricing
         pricing_result = self.agent.run(
-            f"For the {location} imagery, get pricing options",
+            f"For the {location} imagery, get pricing using preview_order",
             state=self.state
         )
         self.state["pricing"] = pricing_result
@@ -217,9 +217,9 @@ class SkyFiWorkflow:
                 "message": f"Please confirm to order imagery of {location}"
             }
 
-        # Place order (agent will use confirmation_token from pricing)
+        # Place order (agent will use confirmation_token from preview_order via confirm_order)
         result = self.agent.run(
-            f"Place archive order for {archive_id} of {location}",
+            f"Place archive order for {archive_id} of {location} using confirm_order",
             state=self.state
         )
 
@@ -229,7 +229,7 @@ class SkyFiWorkflow:
         """Set up continuous area monitoring."""
 
         result = self.agent.run(
-            f"Create notification for {location} to monitor new imagery",
+            f"Use setup_area_monitoring with action=create for {location} to monitor new imagery",
             state=self.state
         )
 
@@ -253,12 +253,11 @@ class SkyFiWorkflow:
 
 Through the MCPToolset, you get access to:
 
-- **Search**: `geocode_location`, `search_archive`, `get_archive_details`
-- **Pricing**: `get_pricing_options`, `check_feasibility`, `predict_satellite_passes`
-- **Orders**: `create_archive_order`, `create_tasking_order`, `list_orders`
-- **Monitoring**: `create_aoi_notification`, `list_notifications`, `check_new_images`
-- **Geolocation**: `reverse_geocode_location`, `search_nearby_pois`
-- **Account**: `get_account_info`
+- **Search**: `geocode_location`, `search_satellite_imagery`, `search_nearby_pois`
+- **Pricing & Orders**: `preview_order`, `confirm_order`, `check_feasibility`
+- **Orders**: `check_order_status`, `get_download_url`
+- **Monitoring**: `setup_area_monitoring`, `check_new_images`
+- **Account**: `get_account_info`, `get_pricing_overview`
 
 ## Example: Complete Order Workflow
 

@@ -87,9 +87,10 @@ You can:
 
 When a user asks about satellite imagery:
 1. Use geocode_location to convert place names to coordinates
-2. Use search_archive to find available imagery
-3. Use get_pricing_options or check_feasibility to get costs (requires confirmation_token)
+2. Use search_satellite_imagery to find available imagery
+3. Use preview_order to get costs and get a confirmation_token
 4. Present findings to the user and get approval before ordering
+5. Use confirm_order with the confirmation_token to place the order
 
 IMPORTANT: Never place orders without explicit user approval and a valid confirmation_token.
 
@@ -147,12 +148,12 @@ workflow.add_node("geocode", lambda state: {
 
 workflow.add_node("search", lambda state: {
     **state,
-    "results": run_tool(tools, "search_archive", state["aoi"])
+    "results": run_tool(tools, "search_satellite_imagery", state["aoi"])
 })
 
 workflow.add_node("pricing", lambda state: {
     **state,
-    "pricing": run_tool(tools, "get_pricing_options", state["aoi"])
+    "pricing": run_tool(tools, "preview_order", state["aoi"])
 })
 
 workflow.add_edge("geocode", "search")
@@ -177,35 +178,38 @@ print(json.dumps(output, indent=2))
 
 **Search & Discovery**
 - `geocode_location` - Convert place names to WKT coordinates
-- `search_archive` - Find archived satellite imagery
-- `search_archive_next_page` - Paginate through results
-- `get_archive_details` - Get full metadata for an image
+- `search_satellite_imagery` - Find archived satellite imagery with auto-geocoding support
+- `search_nearby_pois` - Find points of interest
 
-**Pricing & Feasibility**
-- `get_pricing_options` - Get pricing matrix and confirmation token
-- `check_feasibility` - Check if tasking order is feasible
-- `predict_satellite_passes` - Find upcoming satellite passes
+**Pricing & Ordering**
+- `preview_order` - Get pricing options and confirmation token
+- `confirm_order` - Place orders (archive or tasking) with confirmation_token
+- `check_feasibility` - Check if tasking order is feasible (auto-polls)
 
-**Orders**
-- `create_archive_order` - Order existing archived imagery
-- `create_tasking_order` - Request a new satellite capture
-- `list_orders` - View your order history
-- `get_order_status` - Track order progress
+**Orders & Downloads**
+- `check_order_status` - View order history or track specific order progress
+- `get_download_url` - Get download links for imagery
 
 **Monitoring**
-- `create_aoi_notification` - Set up area monitoring
-- `list_notifications` - View active monitors
+- `setup_area_monitoring` - Create/list/history/delete area monitoring
 - `check_new_images` - Check for new imagery from monitors
 
-**Geocoding**
-- `reverse_geocode_location` - Convert coordinates to place name
+**Geolocation**
 - `search_nearby_pois` - Find points of interest
+
+**Account**
+- `get_account_info` - Check budget and usage
+
+**Pricing Overview**
+- `get_pricing_overview` - Get general pricing questions answered
 
 ### Confirmation Tokens
 
-Orders require a `confirmation_token` from either:
-1. `get_pricing_options` - For archive orders
-2. `check_feasibility` - For tasking orders
+Orders require a `confirmation_token` from `preview_order`. The flow is:
+1. `search_satellite_imagery` → find images (auto-geocodes if needed)
+2. `preview_order` → get exact pricing + confirmation_token
+3. Present price to user and get approval
+4. `confirm_order` → place order (archive or tasking) with confirmation_token
 
 Always present pricing/feasibility results to the user and get explicit approval before using the token.
 

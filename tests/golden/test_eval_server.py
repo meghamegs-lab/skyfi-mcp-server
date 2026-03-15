@@ -80,7 +80,7 @@ class TestE081HealthCheck:
         body = json.loads(response["body"])
         assert "tools" in body
         assert isinstance(body["tools"], int)
-        assert body["tools"] >= 20
+        assert body["tools"] >= 12
 
 
 # ── E-082: Webhook Endpoint ──────────────────────────────────────────────────

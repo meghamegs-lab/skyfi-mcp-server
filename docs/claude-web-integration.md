@@ -54,8 +54,8 @@ Find satellite imagery of Tokyo from the last 2 weeks
 ```
 
 Claude will automatically:
-1. Use `geocode_location` to find Tokyo's coordinates
-2. Use `search_archive` to find available imagery
+1. Use `geocode_location` to find Tokyo's coordinates (if needed)
+2. Use `search_satellite_imagery` to find available imagery
 3. Present results with thumbnails and pricing
 
 ## Using SkyFi Tools in Claude
@@ -74,7 +74,7 @@ Claude will automatically:
 **You:** "How much would a new satellite capture of our warehouse cost?"
 
 **Claude:**
-- Uses `get_pricing_options` to retrieve pricing matrix
+- Uses `preview_order` to retrieve pricing and confirmation token
 - Presents costs to you
 - Waits for approval before ordering
 
@@ -83,7 +83,7 @@ Claude will automatically:
 **You:** "Monitor Manhattan for new satellite imagery and tell me when any becomes available"
 
 **Claude:**
-- Creates AOI notification with `create_aoi_notification`
+- Creates AOI notification with `setup_area_monitoring` (action=create)
 - Stores the monitoring ID
 - Checks periodically with `check_new_images`
 
@@ -118,32 +118,27 @@ Content-Type: application/json
 ### Search & Discover
 
 - **`geocode_location`** - Convert place name to WKT polygon
-- **`search_archive`** - Find archived satellite imagery
-- **`get_archive_details`** - Get full metadata for an image
-- **`predict_satellite_passes`** - See upcoming captures
+- **`search_satellite_imagery`** - Find archived satellite imagery (includes auto-geocoding)
+- **`search_nearby_pois`** - Find points of interest
 
-### Check Before Ordering
+### Check Pricing & Feasibility
 
-- **`get_pricing_options`** - Get cost estimate (returns confirmation_token)
+- **`preview_order`** - Get cost estimate and confirmation_token
 - **`check_feasibility`** - Check if tasking order is possible
 
 ### Place Orders
 
-- **`create_archive_order`** - Order existing archived image
-- **`create_tasking_order`** - Request new satellite capture
-- **`schedule_redelivery`** - Deliver to cloud storage
+- **`confirm_order`** - Place archive or tasking orders with confirmation_token
+- **`get_download_url`** - Get download links for imagery
 
 ### Monitor Areas
 
-- **`create_aoi_notification`** - Set up area monitoring
-- **`list_notifications`** - View active monitors
+- **`setup_area_monitoring`** - Create/list/delete area monitoring
 - **`check_new_images`** - Check for updates
 
 ### Manage Orders
 
-- **`list_orders`** - View order history
-- **`get_order_status`** - Track progress
-- **`get_download_url`** - Get download link
+- **`check_order_status`** - View order history or track specific order progress
 
 ### Account
 
@@ -158,11 +153,11 @@ You can add custom instructions to your Claude profile to always use certain Sky
 
 ```
 When users ask about satellite imagery:
-1. First geocode their location using geocode_location
-2. Search for available imagery using search_archive
-3. ALWAYS present pricing using get_pricing_options BEFORE placing any order
-4. Only create orders after explicit user approval
-5. For long-term monitoring, use create_aoi_notification
+1. First geocode their location using geocode_location (or use auto-geocoding in search_satellite_imagery)
+2. Search for available imagery using search_satellite_imagery
+3. ALWAYS present pricing using preview_order BEFORE placing any order
+4. Only create orders after explicit user approval using confirm_order with confirmation_token
+5. For long-term monitoring, use setup_area_monitoring
 ```
 
 ## Troubleshooting
