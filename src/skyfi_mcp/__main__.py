@@ -199,19 +199,30 @@ def _create_combined_app(mcp_server):
         get_account_info,
     )
 
+    # FastMCP's @mcp.tool() decorator may return a Tool wrapper object
+    # instead of the original function. We need the raw async function
+    # for the /tool/<name> proxy. Extract it via .fn attribute if needed.
+    def _unwrap(fn):
+        """Get the raw async function from a FastMCP Tool wrapper."""
+        if hasattr(fn, "fn") and callable(fn.fn):
+            return fn.fn
+        if hasattr(fn, "__wrapped__"):
+            return fn.__wrapped__
+        return fn
+
     _tool_registry = {
-        "search_satellite_imagery": search_satellite_imagery,
-        "check_feasibility": check_feasibility,
-        "get_pricing_overview": get_pricing_overview,
-        "preview_order": preview_order,
-        "confirm_order": confirm_order,
-        "check_order_status": check_order_status,
-        "get_download_url": get_download_url,
-        "setup_area_monitoring": setup_area_monitoring,
-        "check_new_images": check_new_images,
-        "geocode_location": geocode_location,
-        "search_nearby_pois": search_nearby_pois,
-        "get_account_info": get_account_info,
+        "search_satellite_imagery": _unwrap(search_satellite_imagery),
+        "check_feasibility": _unwrap(check_feasibility),
+        "get_pricing_overview": _unwrap(get_pricing_overview),
+        "preview_order": _unwrap(preview_order),
+        "confirm_order": _unwrap(confirm_order),
+        "check_order_status": _unwrap(check_order_status),
+        "get_download_url": _unwrap(get_download_url),
+        "setup_area_monitoring": _unwrap(setup_area_monitoring),
+        "check_new_images": _unwrap(check_new_images),
+        "geocode_location": _unwrap(geocode_location),
+        "search_nearby_pois": _unwrap(search_nearby_pois),
+        "get_account_info": _unwrap(get_account_info),
     }
 
     async def handle_tool_proxy(scope, receive, send, tool_name: str):
@@ -236,6 +247,8 @@ def _create_combined_app(mcp_server):
 
         tool_fn = _tool_registry[tool_name]
         try:
+            # Remove 'ctx' if present — the proxy doesn't have an MCP Context
+            args.pop("ctx", None)
             result = await tool_fn(**args)
         except TypeError as e:
             # Argument mismatch — return helpful error

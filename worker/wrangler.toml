@@ -3,19 +3,20 @@
 name = "skyfi-mcp-worker"
 main = "src/index.ts"
 compatibility_date = "2025-02-25"
+compatibility_flags = ["nodejs_compat"]
 
 # Python backend URL (set per environment)
 [vars]
-PYTHON_BACKEND_URL = "http://localhost:8000"
+PYTHON_BACKEND_URL = "https://skyfi-mcp-server.fly.dev"
 
 # Durable Objects for MCP session management
 [[durable_objects.bindings]]
-name = "MCP_SESSION"
+name = "MCP_OBJECT" 
 class_name = "SkyFiMcpAgent"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["SkyFiMcpAgent"]
+new_sqlite_classes = ["SkyFiMcpAgent"]
 
 # ── Production environment ──────────────────────────────────────────────────
 [env.production]
@@ -23,6 +24,7 @@ vars = { PYTHON_BACKEND_URL = "https://skyfi-mcp-server.fly.dev" }
 
 # KV namespace for OAuth state (authorization codes, tokens)
 [[kv_namespaces]]
+binding = "OAUTH_KV"
 id = "d781b4e2b82e451c812ea388c88fdbc3"
 
 # Secrets (set via `wrangler secret put`):

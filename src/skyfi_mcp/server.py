@@ -216,15 +216,20 @@ def _format_search_results(
     """Format archive search results into a clean JSON response."""
     archives = []
     for a in response.archives:
+        # Build a human-readable image name from constellation + date
+        date_part = a.capture_timestamp[:10] if a.capture_timestamp else "unknown"
+        image_name = f"{a.constellation}_{date_part}"
         archives.append({
+            "image_name": image_name,
             "archive_id": a.archive_id,
             "provider": a.provider.value,
             "constellation": a.constellation,
             "product_type": a.product_type.value,
             "resolution": a.resolution,
+            "gsd_cm": a.gsd,
             "capture_date": a.capture_timestamp,
             "cloud_coverage_percent": a.cloud_coverage_percent,
-            "gsd_cm": a.gsd,
+            "off_nadir_angle": a.off_nadir_angle,
             "price_per_sq_km_usd": a.price_per_sq_km,
             "price_full_scene_usd": a.price_full_scene,
             "total_area_sq_km": a.total_area_sq_km,
@@ -457,10 +462,10 @@ async def preview_order(
     api_key: str | None = None,
     ctx: Context | None = None,
 ) -> str:
-    """Preview an order with exact pricing and feasibility check. Returns a confirmation_token.
-
-    MUST be called before confirm_order. Present the results to the user and get
-    their explicit approval before proceeding.
+    """Add an image to cart / preview an order. When a user says 'order', 'buy',
+    'purchase', or 'add to cart', call this tool FIRST automatically — do NOT ask
+    the user whether to preview. Returns pricing details and a confirmation_token.
+    Present the pricing to the user and ask for confirmation before calling confirm_order.
 
     For ARCHIVE orders: provide archive_id from search results.
     For TASKING orders: provide capture window, product_type, and resolution.
@@ -534,9 +539,10 @@ async def preview_order(
 async def _preview_archive_order(aoi: str, archive_id: str, api_key: str | None) -> str:
     """Preview an archive order: get pricing and generate confirmation token."""
     async with _get_client(api_key) as client:
-        # Get archive details for pricing
+        # Get archive details — pricing is embedded in the archive response
+        # (price_per_sq_km, price_full_scene, min_sq_km, etc.)
+        # Note: the /pricing endpoint is for TASKING orders only, not archive.
         archive = await client.get_archive_details(archive_id)
-        pricing = await client.get_pricing(aoi)
 
     ctx = {
         "type": "archive_order",
@@ -559,7 +565,6 @@ async def _preview_archive_order(aoi: str, archive_id: str, api_key: str | None)
         "price_full_scene_usd": archive.price_full_scene,
         "min_area_sq_km": archive.min_sq_km,
         "delivery_time_hours": archive.delivery_time_hours,
-        "pricing_matrix": pricing,
         "confirmation_token": confirmation_token,
         "token_valid_for_seconds": archive_token_manager.ttl_seconds,
         "instructions": (

@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 
 from skyfi_mcp.api.models import (
+    Archive,
     ArchiveOrderRequest,
     ArchiveOrderResponse,
     ArchiveResponse,
@@ -104,13 +105,15 @@ class SkyFiClient:
         data = await self._request("GET", "/archives", params={"page": page_url})
         return GetArchivesResponse.model_validate(data)
 
-    async def get_archive_details(self, archive_id: str) -> ArchiveResponse:
+    async def get_archive_details(self, archive_id: str) -> Archive:
         """Get full information for a specific archive image.
 
         GET /archives/{archive_id}
+        Note: Single-archive endpoint does NOT return overlap metrics
+        (overlapRatio, overlapSqkm) — those only come from search.
         """
         data = await self._request("GET", f"/archives/{archive_id}")
-        return ArchiveResponse.model_validate(data)
+        return Archive.model_validate(data)
 
     # ── Orders ──────────────────────────────────────────────────────────────
 
