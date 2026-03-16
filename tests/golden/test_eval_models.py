@@ -27,6 +27,7 @@ from skyfi_mcp.api.models import (
 
 # ── E-001: Enum Completeness ─────────────────────────────────────────────────
 
+
 class TestE001EnumCompleteness:
     """E-001: All enums contain the expected members."""
 
@@ -57,6 +58,7 @@ class TestE001EnumCompleteness:
 
 
 # ── E-002: GetArchivesRequest Validation ─────────────────────────────────────
+
 
 class TestE002GetArchivesRequest:
     """E-002: Archive search request models validate correctly."""
@@ -89,6 +91,7 @@ class TestE002GetArchivesRequest:
 
 # ── E-003: ArchiveOrderRequest Validation ────────────────────────────────────
 
+
 class TestE003ArchiveOrderRequest:
     """E-003: Archive order request requires all critical fields."""
 
@@ -106,6 +109,7 @@ class TestE003ArchiveOrderRequest:
 
 # ── E-010: PricingRequest Validation ─────────────────────────────────────────
 
+
 class TestE010PricingRequest:
     """E-010: Pricing request model validates correctly."""
 
@@ -119,6 +123,7 @@ class TestE010PricingRequest:
 
 
 # ── E-011: FeasibilityRequest Validation ─────────────────────────────────────
+
 
 class TestE011FeasibilityRequest:
     """E-011: Feasibility request model validates correctly."""
@@ -144,6 +149,7 @@ class TestE011FeasibilityRequest:
 
 
 # ── E-012: TaskingOrderRequest Validation ────────────────────────────────────
+
 
 class TestE012TaskingOrderRequest:
     """E-012: Tasking order request validates required fields."""
@@ -173,6 +179,7 @@ class TestE012TaskingOrderRequest:
 
 # ── E-013: NotificationRequest Validation ────────────────────────────────────
 
+
 class TestE013NotificationRequest:
     """E-013: Notification request model validates AOI and webhook URL."""
 
@@ -186,6 +193,7 @@ class TestE013NotificationRequest:
 
 # ── E-014: OrderRedeliveryRequest Validation ─────────────────────────────────
 
+
 class TestE014OrderRedeliveryRequest:
     """E-014: Order redelivery request model validates delivery config."""
 
@@ -198,6 +206,7 @@ class TestE014OrderRedeliveryRequest:
 
 
 # ── E-015: Model Round-Trip (serialize → deserialize) ────────────────────────
+
 
 class TestE015ModelRoundTrip:
     """E-015: Models survive serialize → deserialize cycle."""

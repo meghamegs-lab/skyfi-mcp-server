@@ -114,9 +114,13 @@ def _is_wkt(value: str) -> bool:
 # ══════════════════════════════════════════════════════════════════════════════════
 
 
-@mcp.tool(annotations=ToolAnnotations(
-    readOnlyHint=True, idempotentHint=True, openWorldHint=True,
-))
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        idempotentHint=True,
+        openWorldHint=True,
+    )
+)
 async def search_satellite_imagery(
     location: str,
     from_date: str | None = None,
@@ -171,15 +175,14 @@ async def search_satellite_imagery(
         else:
             geo_result = await geocode_to_wkt(location)
             if "error" in geo_result:
-                return json.dumps({
-                    "error": (
-                        f"Could not geocode '{location}': {geo_result['error']}"
-                    ),
-                    "suggestion": (
-                        "Try a more specific location name or provide "
-                        "a WKT polygon directly."
-                    ),
-                })
+                return json.dumps(
+                    {
+                        "error": (f"Could not geocode '{location}': {geo_result['error']}"),
+                        "suggestion": (
+                            "Try a more specific location name or provide a WKT polygon directly."
+                        ),
+                    }
+                )
             aoi = geo_result["wkt"]
             location_info = {
                 "geocoded_name": geo_result["display_name"],
@@ -219,26 +222,28 @@ def _format_search_results(
         # Build a human-readable image name from constellation + date
         date_part = a.capture_timestamp[:10] if a.capture_timestamp else "unknown"
         image_name = f"{a.constellation}_{date_part}"
-        archives.append({
-            "image_name": image_name,
-            "archive_id": a.archive_id,
-            "provider": a.provider.value,
-            "constellation": a.constellation,
-            "product_type": a.product_type.value,
-            "resolution": a.resolution,
-            "gsd_cm": a.gsd,
-            "capture_date": a.capture_timestamp,
-            "cloud_coverage_percent": a.cloud_coverage_percent,
-            "off_nadir_angle": getattr(a, "off_nadir_angle", None),
-            "price_per_sq_km_usd": a.price_per_sq_km,
-            "price_full_scene_usd": a.price_full_scene,
-            "total_area_sq_km": a.total_area_sq_km,
-            "overlap_ratio": a.overlap_ratio,
-            "overlap_sq_km": a.overlap_sq_km,
-            "open_data": a.open_data,
-            "thumbnail_urls": a.thumbnail_urls,
-            "delivery_time_hours": a.delivery_time_hours,
-        })
+        archives.append(
+            {
+                "image_name": image_name,
+                "archive_id": a.archive_id,
+                "provider": a.provider.value,
+                "constellation": a.constellation,
+                "product_type": a.product_type.value,
+                "resolution": a.resolution,
+                "gsd_cm": a.gsd,
+                "capture_date": a.capture_timestamp,
+                "cloud_coverage_percent": a.cloud_coverage_percent,
+                "off_nadir_angle": getattr(a, "off_nadir_angle", None),
+                "price_per_sq_km_usd": a.price_per_sq_km,
+                "price_full_scene_usd": a.price_full_scene,
+                "total_area_sq_km": a.total_area_sq_km,
+                "overlap_ratio": a.overlap_ratio,
+                "overlap_sq_km": a.overlap_sq_km,
+                "open_data": a.open_data,
+                "thumbnail_urls": a.thumbnail_urls,
+                "delivery_time_hours": a.delivery_time_hours,
+            }
+        )
 
     result = {
         "total_results": response.total,
@@ -259,9 +264,13 @@ def _format_search_results(
 # ══════════════════════════════════════════════════════════════════════════════════
 
 
-@mcp.tool(annotations=ToolAnnotations(
-    readOnlyHint=True, idempotentHint=True, openWorldHint=True,
-))
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        idempotentHint=True,
+        openWorldHint=True,
+    )
+)
 async def check_feasibility(
     location: str,
     product_type: str,
@@ -303,9 +312,7 @@ async def check_feasibility(
         else:
             geo_result = await geocode_to_wkt(location)
             if "error" in geo_result:
-                error_msg = (
-                    f"Could not geocode '{location}': {geo_result['error']}"
-                )
+                error_msg = f"Could not geocode '{location}': {geo_result['error']}"
                 return json.dumps({"error": error_msg})
             aoi = geo_result["wkt"]
 
@@ -335,14 +342,9 @@ async def check_feasibility(
                     if ctx:
                         await ctx.report_progress(i + 1, max_polls)
                     await asyncio.sleep(3)
-                    poll_data = await client.get_feasibility_result(
-                        feasibility_id
-                    )
+                    poll_data = await client.get_feasibility_result(feasibility_id)
                     status = poll_data.get("status")
-                    if (
-                        poll_data.get("overallScore")
-                        or status in ("COMPLETE", "ERROR")
-                    ):
+                    if poll_data.get("overallScore") or status in ("COMPLETE", "ERROR"):
                         result = poll_data
                         if ctx:
                             await ctx.report_progress(max_polls, max_polls)
@@ -360,18 +362,12 @@ async def check_feasibility(
                 "feasibility_id": feasibility_id,
                 "status": "complete",
                 "valid_until": result.valid_until,
-                "overall_feasibility_score": (
-                    score.feasibility if score else None
-                ),
+                "overall_feasibility_score": (score.feasibility if score else None),
                 "weather_score": (
-                    score.weather_score.weather_score
-                    if score and score.weather_score
-                    else None
+                    score.weather_score.weather_score if score and score.weather_score else None
                 ),
                 "provider_score": (
-                    score.provider_score.score
-                    if score and score.provider_score
-                    else None
+                    score.provider_score.score if score and score.provider_score else None
                 ),
             }
         else:
@@ -382,8 +378,7 @@ async def check_feasibility(
             }
 
         output["note"] = (
-            "This is a read-only feasibility check. "
-            "Use preview_order when ready to order."
+            "This is a read-only feasibility check. Use preview_order when ready to order."
         )
         return json.dumps(output, indent=2, default=str)
 
@@ -396,9 +391,13 @@ async def check_feasibility(
 # ══════════════════════════════════════════════════════════════════════════════════
 
 
-@mcp.tool(annotations=ToolAnnotations(
-    readOnlyHint=True, idempotentHint=True, openWorldHint=True,
-))
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        idempotentHint=True,
+        openWorldHint=True,
+    )
+)
 async def get_pricing_overview(
     location: str | None = None,
     api_key: str | None = None,
@@ -428,13 +427,13 @@ async def get_pricing_overview(
         async with _get_client(api_key) as client:
             pricing = await client.get_pricing(aoi)
 
-        return json.dumps({
-            "pricing": pricing,
-            "note": (
-                "These are general pricing tiers. "
-                "Use preview_order for exact pricing."
-            ),
-        }, indent=2)
+        return json.dumps(
+            {
+                "pricing": pricing,
+                "note": ("These are general pricing tiers. Use preview_order for exact pricing."),
+            },
+            indent=2,
+        )
 
     except Exception as e:
         return _format_error(e)
@@ -445,9 +444,13 @@ async def get_pricing_overview(
 # ══════════════════════════════════════════════════════════════════════════════════
 
 
-@mcp.tool(annotations=ToolAnnotations(
-    readOnlyHint=True, idempotentHint=True, openWorldHint=True,
-))
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        idempotentHint=True,
+        openWorldHint=True,
+    )
+)
 async def preview_order(
     order_type: str,
     location: str,
@@ -495,9 +498,7 @@ async def preview_order(
         else:
             geo_result = await geocode_to_wkt(location)
             if "error" in geo_result:
-                error_msg = (
-                    f"Could not geocode '{location}': {geo_result['error']}"
-                )
+                error_msg = f"Could not geocode '{location}': {geo_result['error']}"
                 return json.dumps({"error": error_msg})
             aoi = geo_result["wkt"]
 
@@ -552,26 +553,29 @@ async def _preview_archive_order(aoi: str, archive_id: str, api_key: str | None)
     }
     confirmation_token = archive_token_manager.create_token("order", ctx)
 
-    return json.dumps({
-        "order_type": "ARCHIVE",
-        "archive_id": archive_id,
-        "provider": archive.provider.value,
-        "constellation": archive.constellation,
-        "product_type": archive.product_type.value,
-        "resolution": archive.resolution,
-        "capture_date": archive.capture_timestamp,
-        "cloud_coverage_percent": archive.cloud_coverage_percent,
-        "price_per_sq_km_usd": archive.price_per_sq_km,
-        "price_full_scene_usd": archive.price_full_scene,
-        "min_area_sq_km": archive.min_sq_km,
-        "delivery_time_hours": archive.delivery_time_hours,
-        "confirmation_token": confirmation_token,
-        "token_valid_for_seconds": archive_token_manager.ttl_seconds,
-        "instructions": (
-            "Present this pricing to the user. If they approve, call confirm_order "
-            "with the confirmation_token, order_type='ARCHIVE', and the archive_id."
-        ),
-    }, indent=2)
+    return json.dumps(
+        {
+            "order_type": "ARCHIVE",
+            "archive_id": archive_id,
+            "provider": archive.provider.value,
+            "constellation": archive.constellation,
+            "product_type": archive.product_type.value,
+            "resolution": archive.resolution,
+            "capture_date": archive.capture_timestamp,
+            "cloud_coverage_percent": archive.cloud_coverage_percent,
+            "price_per_sq_km_usd": archive.price_per_sq_km,
+            "price_full_scene_usd": archive.price_full_scene,
+            "min_area_sq_km": archive.min_sq_km,
+            "delivery_time_hours": archive.delivery_time_hours,
+            "confirmation_token": confirmation_token,
+            "token_valid_for_seconds": archive_token_manager.ttl_seconds,
+            "instructions": (
+                "Present this pricing to the user. If they approve, call confirm_order "
+                "with the confirmation_token, order_type='ARCHIVE', and the archive_id."
+            ),
+        },
+        indent=2,
+    )
 
 
 async def _preview_tasking_order(
@@ -613,14 +617,9 @@ async def _preview_tasking_order(
                 if ctx:
                     await ctx.report_progress(i + 1, max_polls)
                 await asyncio.sleep(3)
-                poll_data = await client.get_feasibility_result(
-                    feasibility_id
-                )
+                poll_data = await client.get_feasibility_result(feasibility_id)
                 status = poll_data.get("status")
-                if (
-                    poll_data.get("overallScore")
-                    or status in ("COMPLETE", "ERROR")
-                ):
+                if poll_data.get("overallScore") or status in ("COMPLETE", "ERROR"):
                     feas_result = poll_data
                     if ctx:
                         await ctx.report_progress(max_polls, max_polls)
@@ -644,14 +643,10 @@ async def _preview_tasking_order(
             "status": "complete",
             "overall_score": score.feasibility if score else None,
             "weather_score": (
-                score.weather_score.weather_score
-                if score and score.weather_score
-                else None
+                score.weather_score.weather_score if score and score.weather_score else None
             ),
             "provider_score": (
-                score.provider_score.score
-                if score and score.provider_score
-                else None
+                score.provider_score.score if score and score.provider_score else None
             ),
         }
 
@@ -664,26 +659,29 @@ async def _preview_tasking_order(
     }
     confirmation_token = tasking_token_manager.create_token("order", ctx)
 
-    return json.dumps({
-        "order_type": "TASKING",
-        "product_type": product_type,
-        "resolution": resolution,
-        "window_start": window_start,
-        "window_end": window_end,
-        "feasibility": feasibility_summary,
-        "pricing_matrix": pricing,
-        "confirmation_token": confirmation_token,
-        "token_valid_for_seconds": tasking_token_manager.ttl_seconds,
-        "token_note": (
-            "Tasking tokens are valid for 24 hours to allow time for "
-            "feasibility review."
-        ),
-        "instructions": (
-            "Present the feasibility results and pricing to the user. "
-            "If they approve, call confirm_order with the "
-            "confirmation_token and order_type='TASKING'."
-        ),
-    }, indent=2, default=str)
+    return json.dumps(
+        {
+            "order_type": "TASKING",
+            "product_type": product_type,
+            "resolution": resolution,
+            "window_start": window_start,
+            "window_end": window_end,
+            "feasibility": feasibility_summary,
+            "pricing_matrix": pricing,
+            "confirmation_token": confirmation_token,
+            "token_valid_for_seconds": tasking_token_manager.ttl_seconds,
+            "token_note": (
+                "Tasking tokens are valid for 24 hours to allow time for feasibility review."
+            ),
+            "instructions": (
+                "Present the feasibility results and pricing to the user. "
+                "If they approve, call confirm_order with the "
+                "confirmation_token and order_type='TASKING'."
+            ),
+        },
+        indent=2,
+        default=str,
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════════
@@ -691,9 +689,14 @@ async def _preview_tasking_order(
 # ══════════════════════════════════════════════════════════════════════════════════
 
 
-@mcp.tool(annotations=ToolAnnotations(
-    readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True,
-))
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=False,
+        destructiveHint=True,
+        idempotentHint=False,
+        openWorldHint=True,
+    )
+)
 async def confirm_order(
     confirmation_token: str,
     order_type: str,
@@ -768,22 +771,20 @@ async def confirm_order(
     if order_type_upper == "ARCHIVE":
         valid, msg = archive_token_manager.validate_token(confirmation_token, "order")
     elif order_type_upper == "TASKING":
-        valid, msg = tasking_token_manager.validate_token(
-            confirmation_token, "order"
-        )
+        valid, msg = tasking_token_manager.validate_token(confirmation_token, "order")
     else:
-        valid, msg = (
-            False, f"Invalid order_type '{order_type}'"
-        )
+        valid, msg = (False, f"Invalid order_type '{order_type}'")
 
     if not valid:
-        return json.dumps({
-            "error": f"Order rejected: {msg}",
-            "instructions": (
-                "You must call preview_order first, present the results to the user, "
-                "get their confirmation, then use the confirmation_token from that response."
-            ),
-        })
+        return json.dumps(
+            {
+                "error": f"Order rejected: {msg}",
+                "instructions": (
+                    "You must call preview_order first, present the results to the user, "
+                    "get their confirmation, then use the confirmation_token from that response."
+                ),
+            }
+        )
 
     try:
         # Geocode if needed
@@ -792,9 +793,7 @@ async def confirm_order(
         else:
             geo_result = await geocode_to_wkt(location)
             if "error" in geo_result:
-                error_msg = (
-                    f"Could not geocode '{location}': {geo_result['error']}"
-                )
+                error_msg = f"Could not geocode '{location}': {geo_result['error']}"
                 return json.dumps({"error": error_msg})
             aoi = geo_result["wkt"]
 
@@ -815,19 +814,22 @@ async def confirm_order(
             async with _get_client(api_key) as client:
                 response = await client.create_archive_order(request)
 
-            return json.dumps({
-                "status": "order_placed",
-                "order_type": "ARCHIVE",
-                "order_id": response.order_id,
-                "order_code": response.order_code,
-                "order_cost_cents": response.order_cost,
-                "order_cost_usd": response.order_cost / 100,
-                "delivery_status": response.status.value,
-                "aoi_sq_km": response.aoi_sq_km,
-                "download_image_url": response.download_image_url,
-                "download_payload_url": response.download_payload_url,
-                "created_at": response.created_at,
-            }, indent=2)
+            return json.dumps(
+                {
+                    "status": "order_placed",
+                    "order_type": "ARCHIVE",
+                    "order_id": response.order_id,
+                    "order_code": response.order_code,
+                    "order_cost_cents": response.order_cost,
+                    "order_cost_usd": response.order_cost / 100,
+                    "delivery_status": response.status.value,
+                    "aoi_sq_km": response.aoi_sq_km,
+                    "download_image_url": response.download_image_url,
+                    "download_payload_url": response.download_payload_url,
+                    "created_at": response.created_at,
+                },
+                indent=2,
+            )
 
         elif order_type_upper == "TASKING":
             if not all([window_start, window_end, product_type, resolution]):
@@ -853,9 +855,7 @@ async def confirm_order(
                 maxOffNadirAngle=max_off_nadir_angle,
                 requiredProvider=ApiProvider(required_provider) if required_provider else None,
                 sarProductTypes=(
-                    [SarProductType(s) for s in sar_product_types]
-                    if sar_product_types
-                    else None
+                    [SarProductType(s) for s in sar_product_types] if sar_product_types else None
                 ),
                 sarPolarisation=SarPolarisation(sar_polarisation) if sar_polarisation else None,
                 sarGrazingAngleMin=sar_grazing_angle_min,
@@ -868,27 +868,27 @@ async def confirm_order(
             async with _get_client(api_key) as client:
                 response = await client.create_tasking_order(request)
 
-            return json.dumps({
-                "status": "order_placed",
-                "order_type": "TASKING",
-                "order_id": response.order_id,
-                "order_code": response.order_code,
-                "order_cost_cents": response.order_cost,
-                "order_cost_usd": response.order_cost / 100,
-                "delivery_status": response.status.value,
-                "window_start": response.window_start,
-                "window_end": response.window_end,
-                "product_type": response.product_type.value,
-                "resolution": response.resolution,
-                "aoi_sq_km": response.aoi_sq_km,
-                "created_at": response.created_at,
-            }, indent=2)
+            return json.dumps(
+                {
+                    "status": "order_placed",
+                    "order_type": "TASKING",
+                    "order_id": response.order_id,
+                    "order_code": response.order_code,
+                    "order_cost_cents": response.order_cost,
+                    "order_cost_usd": response.order_cost / 100,
+                    "delivery_status": response.status.value,
+                    "window_start": response.window_start,
+                    "window_end": response.window_end,
+                    "product_type": response.product_type.value,
+                    "resolution": response.resolution,
+                    "aoi_sq_km": response.aoi_sq_km,
+                    "created_at": response.created_at,
+                },
+                indent=2,
+            )
 
         else:
-            msg = (
-                f"Invalid order_type '{order_type}'. "
-                "Must be ARCHIVE or TASKING."
-            )
+            msg = f"Invalid order_type '{order_type}'. Must be ARCHIVE or TASKING."
             return json.dumps({"error": msg})
 
     except Exception as e:
@@ -900,9 +900,13 @@ async def confirm_order(
 # ══════════════════════════════════════════════════════════════════════════════════
 
 
-@mcp.tool(annotations=ToolAnnotations(
-    readOnlyHint=True, idempotentHint=True, openWorldHint=True,
-))
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        idempotentHint=True,
+        openWorldHint=True,
+    )
+)
 async def check_order_status(
     order_id: str | None = None,
     order_type: str | None = None,
@@ -948,31 +952,36 @@ async def check_order_status(
                 orders = []
                 for o in response.orders:
                     info = o.order_info
-                    orders.append({
-                        "order_id": info.order_id,
-                        "order_code": info.order_code,
-                        "order_type": info.order_type.value,
-                        "status": info.status.value,
-                        "cost_cents": info.order_cost,
-                        "cost_usd": info.order_cost / 100,
-                        "aoi_sq_km": info.aoi_sq_km,
-                        "created_at": info.created_at,
-                        "download_image_url": info.download_image_url,
-                        "download_payload_url": info.download_payload_url,
-                        "download_cog_url": getattr(info, "download_cog_url", None),
-                        "latest_event": {
-                            "status": o.event.status.value,
-                            "timestamp": o.event.timestamp,
-                            "message": o.event.message,
-                        },
-                    })
+                    orders.append(
+                        {
+                            "order_id": info.order_id,
+                            "order_code": info.order_code,
+                            "order_type": info.order_type.value,
+                            "status": info.status.value,
+                            "cost_cents": info.order_cost,
+                            "cost_usd": info.order_cost / 100,
+                            "aoi_sq_km": info.aoi_sq_km,
+                            "created_at": info.created_at,
+                            "download_image_url": info.download_image_url,
+                            "download_payload_url": info.download_payload_url,
+                            "download_cog_url": getattr(info, "download_cog_url", None),
+                            "latest_event": {
+                                "status": o.event.status.value,
+                                "timestamp": o.event.timestamp,
+                                "message": o.event.message,
+                            },
+                        }
+                    )
 
-                return json.dumps({
-                    "total": response.total,
-                    "page_number": page_number,
-                    "page_size": len(orders),
-                    "orders": orders,
-                }, indent=2)
+                return json.dumps(
+                    {
+                        "total": response.total,
+                        "page_number": page_number,
+                        "page_size": len(orders),
+                        "orders": orders,
+                    },
+                    indent=2,
+                )
 
     except Exception as e:
         return _format_error(e)
@@ -983,9 +992,13 @@ async def check_order_status(
 # ══════════════════════════════════════════════════════════════════════════════════
 
 
-@mcp.tool(annotations=ToolAnnotations(
-    readOnlyHint=True, idempotentHint=True, openWorldHint=True,
-))
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        idempotentHint=True,
+        openWorldHint=True,
+    )
+)
 async def get_download_url(
     order_id: str,
     deliverable_type: str = "image",
@@ -1004,12 +1017,14 @@ async def get_download_url(
     try:
         async with _get_client(api_key) as client:
             url = await client.get_download_url(order_id, DeliverableType(deliverable_type))
-        return json.dumps({
-            "download_url": url,
-            "deliverable_type": deliverable_type,
-            "order_id": order_id,
-            "note": "This URL is time-limited. Download promptly.",
-        })
+        return json.dumps(
+            {
+                "download_url": url,
+                "deliverable_type": deliverable_type,
+                "order_id": order_id,
+                "note": "This URL is time-limited. Download promptly.",
+            }
+        )
     except Exception as e:
         return _format_error(e)
 
@@ -1019,9 +1034,14 @@ async def get_download_url(
 # ══════════════════════════════════════════════════════════════════════════════════
 
 
-@mcp.tool(annotations=ToolAnnotations(
-    readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True,
-))
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
+    )
+)
 async def setup_area_monitoring(
     action: str,
     location: str | None = None,
@@ -1062,10 +1082,7 @@ async def setup_area_monitoring(
 
         if action_lower == "create":
             if not location or not webhook_url:
-                msg = (
-                    "Both 'location' and 'webhook_url' are required for "
-                    "create action."
-                )
+                msg = "Both 'location' and 'webhook_url' are required for create action."
                 return json.dumps({"error": msg})
 
             # Geocode if needed
@@ -1074,9 +1091,7 @@ async def setup_area_monitoring(
             else:
                 geo_result = await geocode_to_wkt(location)
                 if "error" in geo_result:
-                    error_msg = (
-                        f"Could not geocode '{location}': {geo_result['error']}"
-                    )
+                    error_msg = f"Could not geocode '{location}': {geo_result['error']}"
                     return json.dumps({"error": error_msg})
                 aoi = geo_result["wkt"]
 
@@ -1090,17 +1105,20 @@ async def setup_area_monitoring(
             async with _get_client(api_key) as client:
                 response = await client.create_notification(request)
 
-            return json.dumps({
-                "action": "created",
-                "notification_id": response.id,
-                "aoi": response.aoi,
-                "webhook_url": response.webhook_url,
-                "gsd_min": response.gsd_min,
-                "gsd_max": response.gsd_max,
-                "product_type": response.product_type.value if response.product_type else None,
-                "created_at": response.created_at,
-                "status": "active",
-            }, indent=2)
+            return json.dumps(
+                {
+                    "action": "created",
+                    "notification_id": response.id,
+                    "aoi": response.aoi,
+                    "webhook_url": response.webhook_url,
+                    "gsd_min": response.gsd_min,
+                    "gsd_max": response.gsd_max,
+                    "product_type": response.product_type.value if response.product_type else None,
+                    "created_at": response.created_at,
+                    "status": "active",
+                },
+                indent=2,
+            )
 
         elif action_lower == "list":
             async with _get_client(api_key) as client:
@@ -1108,21 +1126,26 @@ async def setup_area_monitoring(
 
             notifications = []
             for n in response.notifications:
-                notifications.append({
-                    "notification_id": n.id,
-                    "aoi": n.aoi,
-                    "webhook_url": n.webhook_url,
-                    "gsd_min": n.gsd_min,
-                    "gsd_max": n.gsd_max,
-                    "product_type": n.product_type.value if n.product_type else None,
-                    "created_at": n.created_at,
-                })
+                notifications.append(
+                    {
+                        "notification_id": n.id,
+                        "aoi": n.aoi,
+                        "webhook_url": n.webhook_url,
+                        "gsd_min": n.gsd_min,
+                        "gsd_max": n.gsd_max,
+                        "product_type": n.product_type.value if n.product_type else None,
+                        "created_at": n.created_at,
+                    }
+                )
 
-            return json.dumps({
-                "action": "list",
-                "total": response.total,
-                "notifications": notifications,
-            }, indent=2)
+            return json.dumps(
+                {
+                    "action": "list",
+                    "total": response.total,
+                    "notifications": notifications,
+                },
+                indent=2,
+            )
 
         elif action_lower == "history":
             if not notification_id:
@@ -1131,14 +1154,18 @@ async def setup_area_monitoring(
             async with _get_client(api_key) as client:
                 response = await client.get_notification_history(notification_id)
 
-            return json.dumps({
-                "action": "history",
-                "notification_id": response.id,
-                "aoi": response.aoi,
-                "webhook_url": response.webhook_url,
-                "created_at": response.created_at,
-                "history_events": [e.model_dump() for e in response.history],
-            }, indent=2, default=str)
+            return json.dumps(
+                {
+                    "action": "history",
+                    "notification_id": response.id,
+                    "aoi": response.aoi,
+                    "webhook_url": response.webhook_url,
+                    "created_at": response.created_at,
+                    "history_events": [e.model_dump() for e in response.history],
+                },
+                indent=2,
+                default=str,
+            )
 
         elif action_lower == "delete":
             if not notification_id:
@@ -1147,17 +1174,16 @@ async def setup_area_monitoring(
             async with _get_client(api_key) as client:
                 result = await client.delete_notification(notification_id)
 
-            return json.dumps({
-                "action": "deleted",
-                "notification_id": notification_id,
-                "status": result.status,
-            })
+            return json.dumps(
+                {
+                    "action": "deleted",
+                    "notification_id": notification_id,
+                    "status": result.status,
+                }
+            )
 
         else:
-            msg = (
-                f"Invalid action '{action}'. "
-                "Must be one of: create, list, history, delete."
-            )
+            msg = f"Invalid action '{action}'. Must be one of: create, list, history, delete."
             return json.dumps({"error": msg})
 
     except Exception as e:
@@ -1169,9 +1195,13 @@ async def setup_area_monitoring(
 # ══════════════════════════════════════════════════════════════════════════════════
 
 
-@mcp.tool(annotations=ToolAnnotations(
-    readOnlyHint=True, idempotentHint=True, openWorldHint=False,
-))
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        idempotentHint=True,
+        openWorldHint=False,
+    )
+)
 async def check_new_images(
     notification_id: str | None = None,
     hours: int = 24,
@@ -1199,21 +1229,27 @@ async def check_new_images(
         results = []
         event_ids = []
         for e in events:
-            results.append({
-                "event_id": e.id,
-                "notification_id": e.notification_id,
-                "received_at": e.received_at,
-                "payload": e.payload,
-            })
+            results.append(
+                {
+                    "event_id": e.id,
+                    "notification_id": e.notification_id,
+                    "received_at": e.received_at,
+                    "payload": e.payload,
+                }
+            )
             event_ids.append(e.id)
 
         if mark_as_read and event_ids:
             event_store.mark_read(event_ids)
 
-        return json.dumps({
-            "total_new_events": len(results),
-            "events": results,
-        }, indent=2, default=str)
+        return json.dumps(
+            {
+                "total_new_events": len(results),
+                "events": results,
+            },
+            indent=2,
+            default=str,
+        )
 
     except Exception as e:
         return _format_error(e)
@@ -1224,9 +1260,13 @@ async def check_new_images(
 # ══════════════════════════════════════════════════════════════════════════════════
 
 
-@mcp.tool(annotations=ToolAnnotations(
-    readOnlyHint=True, idempotentHint=True, openWorldHint=True,
-))
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        idempotentHint=True,
+        openWorldHint=True,
+    )
+)
 async def geocode_location(
     location_name: str,
     buffer_km: float = 1.0,
@@ -1256,9 +1296,13 @@ async def geocode_location(
 # ══════════════════════════════════════════════════════════════════════════════════
 
 
-@mcp.tool(annotations=ToolAnnotations(
-    readOnlyHint=True, idempotentHint=True, openWorldHint=True,
-))
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        idempotentHint=True,
+        openWorldHint=True,
+    )
+)
 async def search_nearby_pois(
     lat: float,
     lon: float,
@@ -1295,9 +1339,13 @@ async def search_nearby_pois(
 # ══════════════════════════════════════════════════════════════════════════════════
 
 
-@mcp.tool(annotations=ToolAnnotations(
-    readOnlyHint=True, idempotentHint=True, openWorldHint=True,
-))
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        idempotentHint=True,
+        openWorldHint=True,
+    )
+)
 async def get_account_info(
     api_key: str | None = None,
 ) -> str:
@@ -1315,19 +1363,22 @@ async def get_account_info(
         async with _get_client(api_key) as client:
             user = await client.whoami()
 
-        return json.dumps({
-            "id": user.id,
-            "email": user.email,
-            "name": f"{user.first_name} {user.last_name}",
-            "organization_id": user.organization_id,
-            "is_demo_account": user.is_demo_account,
-            "budget_used_cents": user.current_budget_usage,
-            "budget_used_usd": user.current_budget_usage / 100,
-            "budget_total_cents": user.budget_amount,
-            "budget_total_usd": user.budget_amount / 100,
-            "budget_remaining_usd": (user.budget_amount - user.current_budget_usage) / 100,
-            "has_valid_payment_method": user.has_valid_shared_card,
-        }, indent=2)
+        return json.dumps(
+            {
+                "id": user.id,
+                "email": user.email,
+                "name": f"{user.first_name} {user.last_name}",
+                "organization_id": user.organization_id,
+                "is_demo_account": user.is_demo_account,
+                "budget_used_cents": user.current_budget_usage,
+                "budget_used_usd": user.current_budget_usage / 100,
+                "budget_total_cents": user.budget_amount,
+                "budget_total_usd": user.budget_amount / 100,
+                "budget_remaining_usd": (user.budget_amount - user.current_budget_usage) / 100,
+                "has_valid_payment_method": user.has_valid_shared_card,
+            },
+            indent=2,
+        )
 
     except Exception as e:
         return _format_error(e)

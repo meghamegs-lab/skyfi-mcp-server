@@ -13,6 +13,7 @@ import pytest
 
 # ── E-080: Landing Page ──────────────────────────────────────────────────────
 
+
 class TestE080LandingPage:
     """E-080: GET / returns JSON with name, version, endpoints."""
 
@@ -20,6 +21,7 @@ class TestE080LandingPage:
     def app(self):
         from skyfi_mcp.__main__ import _create_combined_app
         from skyfi_mcp.server import mcp
+
         return _create_combined_app(mcp)
 
     @pytest.mark.asyncio
@@ -48,6 +50,7 @@ class TestE080LandingPage:
 
 # ── E-081: Health Check ──────────────────────────────────────────────────────
 
+
 class TestE081HealthCheck:
     """E-081: GET /health returns healthy status."""
 
@@ -55,6 +58,7 @@ class TestE081HealthCheck:
     def app(self):
         from skyfi_mcp.__main__ import _create_combined_app
         from skyfi_mcp.server import mcp
+
         return _create_combined_app(mcp)
 
     @pytest.mark.asyncio
@@ -85,6 +89,7 @@ class TestE081HealthCheck:
 
 # ── E-082: Webhook Endpoint ──────────────────────────────────────────────────
 
+
 class TestE082WebhookEndpoint:
     """E-082: POST /webhook stores events and returns correct response."""
 
@@ -92,14 +97,17 @@ class TestE082WebhookEndpoint:
     def app(self):
         from skyfi_mcp.__main__ import _create_combined_app
         from skyfi_mcp.server import mcp
+
         return _create_combined_app(mcp)
 
     @pytest.mark.asyncio
     async def test_webhook_valid_payload(self, app):
-        payload = json.dumps({
-            "notification_id": "notif-test-123",
-            "archive_id": "arch-456",
-        }).encode()
+        payload = json.dumps(
+            {
+                "notification_id": "notif-test-123",
+                "archive_id": "arch-456",
+            }
+        ).encode()
         response = await _simulate_request(app, "POST", "/webhook", body=payload)
         assert response["status"] == 200
         body = json.loads(response["body"])
@@ -108,10 +116,12 @@ class TestE082WebhookEndpoint:
 
     @pytest.mark.asyncio
     async def test_webhook_camel_case_notification_id(self, app):
-        payload = json.dumps({
-            "notificationId": "notif-camel",
-            "data": "test",
-        }).encode()
+        payload = json.dumps(
+            {
+                "notificationId": "notif-camel",
+                "data": "test",
+            }
+        ).encode()
         response = await _simulate_request(app, "POST", "/webhook", body=payload)
         assert response["status"] == 200
 
@@ -131,6 +141,7 @@ class TestE082WebhookEndpoint:
 
 # ── E-084: Invalid Webhook Payloads ──────────────────────────────────────────
 
+
 class TestE084InvalidWebhook:
     """E-084: POST /webhook with bad data returns 400."""
 
@@ -138,6 +149,7 @@ class TestE084InvalidWebhook:
     def app(self):
         from skyfi_mcp.__main__ import _create_combined_app
         from skyfi_mcp.server import mcp
+
         return _create_combined_app(mcp)
 
     @pytest.mark.asyncio
@@ -157,6 +169,7 @@ class TestE084InvalidWebhook:
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
 
 async def _simulate_request(
     app,

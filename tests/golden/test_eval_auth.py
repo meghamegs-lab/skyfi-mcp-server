@@ -14,6 +14,7 @@ from skyfi_mcp.auth.config import AuthConfig, extract_cloud_auth, load_local_con
 
 # ── E-070: Local Auth from Env Var ────────────────────────────────────────────
 
+
 class TestE070LocalAuthFromEnv:
     """E-070: SKYFI_API_KEY env var produces a valid AuthConfig."""
 
@@ -43,6 +44,7 @@ class TestE070LocalAuthFromEnv:
 
 
 # ── E-071: Local Auth from Config File ────────────────────────────────────────
+
 
 class TestE071LocalAuthFromFile:
     """E-071: ~/.skyfi/config.json with api_key produces AuthConfig."""
@@ -75,10 +77,14 @@ class TestE071LocalAuthFromFile:
         config_dir = tmp_path / ".skyfi"
         config_dir.mkdir()
         config_file = config_dir / "config.json"
-        config_file.write_text(json.dumps({
-            "api_key": "sk-file",
-            "base_url": "https://staging.skyfi.com/api",
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "api_key": "sk-file",
+                    "base_url": "https://staging.skyfi.com/api",
+                }
+            )
+        )
         with patch.object(Path, "home", return_value=tmp_path):
             config = load_local_config()
         assert config.base_url == "https://staging.skyfi.com/api"
@@ -96,6 +102,7 @@ class TestE071LocalAuthFromFile:
 
 # ── E-072: Env Var Overrides Config File ──────────────────────────────────────
 
+
 class TestE072EnvOverridesFile:
     """E-072: When both env var and config file exist, env var wins."""
 
@@ -111,6 +118,7 @@ class TestE072EnvOverridesFile:
 
 
 # ── E-073: Cloud Auth with Bearer Header ─────────────────────────────────────
+
 
 class TestE073CloudAuthBearer:
     """E-073: Authorization: Bearer header extracts correctly."""
@@ -141,6 +149,7 @@ class TestE073CloudAuthBearer:
 
 # ── E-074: Cloud Auth with X-Skyfi-Api-Key Header ────────────────────────────
 
+
 class TestE074CloudAuthApiKeyHeader:
     """E-074: X-Skyfi-Api-Key header extracts correctly."""
 
@@ -168,6 +177,7 @@ class TestE074CloudAuthApiKeyHeader:
 
 # ── E-075: No Auth Available ─────────────────────────────────────────────────
 
+
 class TestE075NoAuthAvailable:
     """E-075: When no credentials exist, load_local_config returns None."""
 
@@ -191,6 +201,7 @@ class TestE075NoAuthAvailable:
 
 
 # ── E-076: AuthConfig Properties ─────────────────────────────────────────────
+
 
 class TestE076AuthConfigProperties:
     """E-076: AuthConfig dataclass has correct properties."""

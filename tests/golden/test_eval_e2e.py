@@ -27,6 +27,7 @@ from skyfi_mcp.webhooks.store import WebhookEventStore
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def token_manager():
     return ConfirmationTokenManager(secret="e2e-test-secret", ttl_seconds=300)
@@ -38,6 +39,7 @@ def webhook_store(temp_db_path):
 
 
 # ── E-090: Full Archive Order Flow ───────────────────────────────────────────
+
 
 class TestE090FullArchiveOrderFlow:
     """E-090: geocode → search → details → pricing → confirm → order.
@@ -57,11 +59,14 @@ class TestE090FullArchiveOrderFlow:
         assert pricing_req is not None
 
         # Step 3: Create a confirmation token (simulates pricing tool response)
-        token = token_manager.create_token("order", {
-            "type": "pricing",
-            "aoi": aoi,
-            "archive_id": "arch-suez-001",
-        })
+        token = token_manager.create_token(
+            "order",
+            {
+                "type": "pricing",
+                "aoi": aoi,
+                "archive_id": "arch-suez-001",
+            },
+        )
         assert token is not None
 
         # Step 4: Validate token (simulates order tool receiving it)
@@ -84,6 +89,7 @@ class TestE090FullArchiveOrderFlow:
 
 # ── E-091: Full Tasking Order Flow ───────────────────────────────────────────
 
+
 class TestE091FullTaskingOrderFlow:
     """E-091: geocode → feasibility → pricing → confirm → order.
 
@@ -104,11 +110,14 @@ class TestE091FullTaskingOrderFlow:
         assert feas_req.product_type == ProductType.DAY
 
         # Step 2: Get confirmation token from feasibility
-        token = token_manager.create_token("order", {
-            "type": "feasibility",
-            "aoi": aoi,
-            "product_type": "DAY",
-        })
+        token = token_manager.create_token(
+            "order",
+            {
+                "type": "feasibility",
+                "aoi": aoi,
+                "product_type": "DAY",
+            },
+        )
 
         # Step 3: Validate and place tasking order
         valid, msg = token_manager.validate_token(token, "order")
@@ -127,6 +136,7 @@ class TestE091FullTaskingOrderFlow:
 
 # ── E-092: Monitoring Setup Flow ─────────────────────────────────────────────
 
+
 class TestE092MonitoringSetupFlow:
     """E-092: create notification → webhook fires → check_new_images.
 
@@ -135,12 +145,15 @@ class TestE092MonitoringSetupFlow:
 
     def test_webhook_receive_and_check(self, webhook_store):
         # Step 1: Simulate webhook firing (SkyFi sends POST /webhook)
-        event_id = webhook_store.store_event("notif-monitor-001", {
-            "notification_id": "notif-monitor-001",
-            "archive_id": "arch-new-img-001",
-            "provider": "PLANET",
-            "capture_date": "2025-03-15T10:00:00Z",
-        })
+        event_id = webhook_store.store_event(
+            "notif-monitor-001",
+            {
+                "notification_id": "notif-monitor-001",
+                "archive_id": "arch-new-img-001",
+                "provider": "PLANET",
+                "capture_date": "2025-03-15T10:00:00Z",
+            },
+        )
         assert event_id > 0
 
         # Step 2: Agent calls check_new_images (polls unread)
@@ -165,6 +178,7 @@ class TestE092MonitoringSetupFlow:
 
 
 # ── E-093: Research Agent Flow ───────────────────────────────────────────────
+
 
 class TestE093ResearchAgentFlow:
     """E-093: Place name → geocode → search → feasibility → pass prediction → brief.
@@ -207,6 +221,7 @@ class TestE093ResearchAgentFlow:
 
 # ── E-094: Multi-Step Token Safety ───────────────────────────────────────────
 
+
 class TestE094MultiStepTokenSafety:
     """E-094: Verify token safety across various attack scenarios."""
 
@@ -234,6 +249,7 @@ class TestE094MultiStepTokenSafety:
 
 
 # ── E-095: Order Rejection Flow ──────────────────────────────────────────────
+
 
 class TestE095OrderRejectionFlow:
     """E-095: Try order without pricing step → token rejection."""

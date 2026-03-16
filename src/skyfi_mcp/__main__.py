@@ -117,14 +117,16 @@ def _create_combined_app(mcp_server):
 
     async def _json_response(scope, receive, send, body: dict, status: int = 200):
         payload = _json.dumps(body).encode()
-        await send({
-            "type": "http.response.start",
-            "status": status,
-            "headers": [
-                [b"content-type", b"application/json"],
-                [b"content-length", str(len(payload)).encode()],
-            ],
-        })
+        await send(
+            {
+                "type": "http.response.start",
+                "status": status,
+                "headers": [
+                    [b"content-type", b"application/json"],
+                    [b"content-length", str(len(payload)).encode()],
+                ],
+            }
+        )
         await send({"type": "http.response.body", "body": payload})
 
     async def _read_body(receive) -> bytes:
@@ -139,30 +141,40 @@ def _create_combined_app(mcp_server):
     # -- custom route handlers ----------------------------------------------
 
     async def handle_landing(scope, receive, send):
-        await _json_response(scope, receive, send, {
-            "name": "SkyFi MCP Server",
-            "version": "0.1.0",
-            "description": "Satellite imagery via Model Context Protocol",
-            "endpoints": {
-                "mcp": "/mcp  (MCP protocol — use an MCP client, not a browser)",
-                "health": "/health  (GET — health check)",
-                "webhook": "/webhook  (POST — SkyFi notification webhook receiver)",
-                "tool_proxy": "/tool/<name>  (POST — direct tool invocation for CF Worker proxy)",
+        await _json_response(
+            scope,
+            receive,
+            send,
+            {
+                "name": "SkyFi MCP Server",
+                "version": "0.1.0",
+                "description": "Satellite imagery via Model Context Protocol",
+                "endpoints": {
+                    "mcp": "/mcp  (MCP protocol — use an MCP client, not a browser)",
+                    "health": "/health  (GET — health check)",
+                    "webhook": "/webhook  (POST — SkyFi notification webhook receiver)",
+                    "tool_proxy": "/tool/<name>  (POST — direct tool invocation for CF Worker proxy)",
+                },
+                "docs": "https://github.com/skyfi/skyfi-mcp-server",
+                "note": (
+                    "This is an MCP server. Connect with Claude, ChatGPT, "
+                    "LangChain, or any MCP-compatible client."
+                ),
             },
-            "docs": "https://github.com/skyfi/skyfi-mcp-server",
-            "note": (
-                "This is an MCP server. Connect with Claude, ChatGPT, "
-                "LangChain, or any MCP-compatible client."
-            ),
-        })
+        )
 
     async def handle_health(scope, receive, send):
-        await _json_response(scope, receive, send, {
-            "status": "healthy",
-            "service": "skyfi-mcp",
-            "version": "0.1.0",
-            "tools": 12,
-        })
+        await _json_response(
+            scope,
+            receive,
+            send,
+            {
+                "status": "healthy",
+                "service": "skyfi-mcp",
+                "version": "0.1.0",
+                "tools": 12,
+            },
+        )
 
     async def handle_webhook(scope, receive, send):
         raw = await _read_body(receive)
@@ -172,9 +184,7 @@ def _create_combined_app(mcp_server):
             await _json_response(scope, receive, send, {"error": "Invalid JSON"}, 400)
             return
         notification_id = (
-            payload.get("notification_id")
-            or payload.get("notificationId")
-            or "unknown"
+            payload.get("notification_id") or payload.get("notificationId") or "unknown"
         )
         event_id = event_store.store_event(notification_id, payload)
         logger.info("Webhook received: notification=%s, event=%s", notification_id, event_id)
@@ -232,10 +242,16 @@ def _create_combined_app(mcp_server):
             POST /tool/<tool_name>  { ...args, api_key?: "..." }
         """
         if tool_name not in _tool_registry:
-            await _json_response(scope, receive, send, {
-                "error": f"Unknown tool: {tool_name}",
-                "available_tools": list(_tool_registry.keys()),
-            }, 404)
+            await _json_response(
+                scope,
+                receive,
+                send,
+                {
+                    "error": f"Unknown tool: {tool_name}",
+                    "available_tools": list(_tool_registry.keys()),
+                },
+                404,
+            )
             return
 
         raw = await _read_body(receive)
@@ -252,27 +268,41 @@ def _create_combined_app(mcp_server):
             result = await tool_fn(**args)
         except TypeError as e:
             # Argument mismatch — return helpful error
-            await _json_response(scope, receive, send, {
-                "error": f"Invalid arguments for {tool_name}: {e}",
-            }, 400)
+            await _json_response(
+                scope,
+                receive,
+                send,
+                {
+                    "error": f"Invalid arguments for {tool_name}: {e}",
+                },
+                400,
+            )
             return
         except Exception as e:
             logger.exception("Tool %s raised unexpected error", tool_name)
-            await _json_response(scope, receive, send, {
-                "error": f"Tool execution error: {e}",
-            }, 500)
+            await _json_response(
+                scope,
+                receive,
+                send,
+                {
+                    "error": f"Tool execution error: {e}",
+                },
+                500,
+            )
             return
 
         # Tool functions return JSON strings — send as raw text/json
         payload = result.encode() if isinstance(result, str) else _json.dumps(result).encode()
-        await send({
-            "type": "http.response.start",
-            "status": 200,
-            "headers": [
-                [b"content-type", b"application/json"],
-                [b"content-length", str(len(payload)).encode()],
-            ],
-        })
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [
+                    [b"content-type", b"application/json"],
+                    [b"content-length", str(len(payload)).encode()],
+                ],
+            }
+        )
         await send({"type": "http.response.body", "body": payload})
 
     # -- the actual ASGI app ------------------------------------------------
@@ -295,7 +325,7 @@ def _create_combined_app(mcp_server):
         elif path == "/webhook" and method == "POST":
             await handle_webhook(scope, receive, send)
         elif path.startswith("/tool/") and method == "POST":
-            tool_name = path[len("/tool/"):]
+            tool_name = path[len("/tool/") :]
             await handle_tool_proxy(scope, receive, send, tool_name)
         else:
             # Everything else → FastMCP (handles /mcp, SSE, etc.)

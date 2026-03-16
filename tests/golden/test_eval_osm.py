@@ -21,6 +21,7 @@ from skyfi_mcp.osm.geocoder import (
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def nominatim_suez_canal():
     """Mock Nominatim response for 'Suez Canal'."""
@@ -59,10 +60,15 @@ def nominatim_manhattan():
             "boundingbox": ["40.6996", "40.8826", "-74.0479", "-73.9067"],
             "geojson": {
                 "type": "Polygon",
-                "coordinates": [[
-                    [-73.97, 40.70], [-73.91, 40.70], [-73.91, 40.88],
-                    [-73.97, 40.88], [-73.97, 40.70],
-                ]],
+                "coordinates": [
+                    [
+                        [-73.97, 40.70],
+                        [-73.91, 40.70],
+                        [-73.91, 40.88],
+                        [-73.97, 40.88],
+                        [-73.97, 40.70],
+                    ]
+                ],
             },
         }
     ]
@@ -109,6 +115,7 @@ def overpass_airports():
 
 # ── E-020: Geocode Known Location ────────────────────────────────────────────
 
+
 class TestE020GeocodeKnownLocation:
     """E-020: Geocoding 'Suez Canal' returns WKT near 30.45/32.35."""
 
@@ -144,6 +151,7 @@ class TestE020GeocodeKnownLocation:
 
 # ── E-021: Geocode with Polygon Boundary ─────────────────────────────────────
 
+
 class TestE021GeocodeWithBoundary:
     """E-021: Geocoding 'Manhattan' returns an actual polygon boundary."""
 
@@ -169,6 +177,7 @@ class TestE021GeocodeWithBoundary:
 
 # ── E-022: Geocode Unknown Place ─────────────────────────────────────────────
 
+
 class TestE022GeocodeUnknown:
     """E-022: Geocoding nonsense returns error, not crash."""
 
@@ -192,6 +201,7 @@ class TestE022GeocodeUnknown:
 
 
 # ── E-023: Reverse Geocode ───────────────────────────────────────────────────
+
 
 class TestE023ReverseGeocode:
     """E-023: Reverse geocoding near Eiffel Tower returns Paris."""
@@ -218,15 +228,14 @@ class TestE023ReverseGeocode:
 
 # ── E-024: POI Search Airports ───────────────────────────────────────────────
 
+
 class TestE024POISearchAirports:
     """E-024: POI search near JFK finds airport features."""
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_finds_jfk(self, overpass_airports):
-        respx.post(OVERPASS_URL).mock(
-            return_value=httpx.Response(200, json=overpass_airports)
-        )
+        respx.post(OVERPASS_URL).mock(return_value=httpx.Response(200, json=overpass_airports))
         result = await search_nearby_features(40.64, -73.78, feature_type="aeroway")
         assert result["count"] >= 1
         names = [f["name"] for f in result["features"]]
@@ -235,9 +244,7 @@ class TestE024POISearchAirports:
     @respx.mock
     @pytest.mark.asyncio
     async def test_poi_has_coordinates(self, overpass_airports):
-        respx.post(OVERPASS_URL).mock(
-            return_value=httpx.Response(200, json=overpass_airports)
-        )
+        respx.post(OVERPASS_URL).mock(return_value=httpx.Response(200, json=overpass_airports))
         result = await search_nearby_features(40.64, -73.78, feature_type="aeroway")
         for feature in result["features"]:
             assert "lat" in feature
@@ -246,15 +253,14 @@ class TestE024POISearchAirports:
     @respx.mock
     @pytest.mark.asyncio
     async def test_poi_query_center(self, overpass_airports):
-        respx.post(OVERPASS_URL).mock(
-            return_value=httpx.Response(200, json=overpass_airports)
-        )
+        respx.post(OVERPASS_URL).mock(return_value=httpx.Response(200, json=overpass_airports))
         result = await search_nearby_features(40.64, -73.78, feature_type="aeroway")
         assert result["query_center"]["lat"] == 40.64
         assert result["query_center"]["lon"] == -73.78
 
 
 # ── E-025: Geocode → Search Chain ────────────────────────────────────────────
+
 
 class TestE025GeocodeChain:
     """E-025: Geocode result produces a WKT usable for search."""
@@ -282,5 +288,6 @@ class TestE025GeocodeChain:
         wkt = result["wkt"]
         # Should contain numeric coordinates
         import re
+
         coords = re.findall(r"[-\d.]+", wkt)
         assert len(coords) >= 8  # At least 4 coordinate pairs

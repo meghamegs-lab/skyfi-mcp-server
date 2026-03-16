@@ -20,25 +20,35 @@ def store(temp_db_path):
 @pytest.fixture
 def store_with_events(store):
     """Store pre-populated with 3 events across 2 notification IDs."""
-    store.store_event("notif-AAA", {
-        "archive_id": "arch-001",
-        "provider": "PLANET",
-        "capture_date": "2025-03-10T08:00:00Z",
-    })
-    store.store_event("notif-BBB", {
-        "archive_id": "arch-002",
-        "provider": "UMBRA",
-        "capture_date": "2025-03-11T12:00:00Z",
-    })
-    store.store_event("notif-AAA", {
-        "archive_id": "arch-003",
-        "provider": "SATELLOGIC",
-        "capture_date": "2025-03-12T16:00:00Z",
-    })
+    store.store_event(
+        "notif-AAA",
+        {
+            "archive_id": "arch-001",
+            "provider": "PLANET",
+            "capture_date": "2025-03-10T08:00:00Z",
+        },
+    )
+    store.store_event(
+        "notif-BBB",
+        {
+            "archive_id": "arch-002",
+            "provider": "UMBRA",
+            "capture_date": "2025-03-11T12:00:00Z",
+        },
+    )
+    store.store_event(
+        "notif-AAA",
+        {
+            "archive_id": "arch-003",
+            "provider": "SATELLOGIC",
+            "capture_date": "2025-03-12T16:00:00Z",
+        },
+    )
     return store
 
 
 # ── E-064: Webhook POST Stores Event ─────────────────────────────────────────
+
 
 class TestE064WebhookStore:
     """E-064: Incoming webhook payload is stored and retrievable."""
@@ -86,6 +96,7 @@ class TestE064WebhookStore:
 
 # ── E-065: check_new_images Returns Unread and Marks Read ────────────────────
 
+
 class TestE065CheckNewImages:
     """E-065: Unread events are returned and can be marked as read."""
 
@@ -120,6 +131,7 @@ class TestE065CheckNewImages:
 
 # ── E-066: Filtered by Notification ID ───────────────────────────────────────
 
+
 class TestE066FilteredByNotification:
     """E-066: Events can be filtered by notification_id."""
 
@@ -136,14 +148,13 @@ class TestE066FilteredByNotification:
         assert len(events) == 0
 
     def test_recent_events_also_filterable(self, store_with_events):
-        recent = store_with_events.get_recent_events(
-            notification_id="notif-BBB", hours=1
-        )
+        recent = store_with_events.get_recent_events(notification_id="notif-BBB", hours=1)
         assert len(recent) == 1
         assert recent[0].notification_id == "notif-BBB"
 
 
 # ── E-067: Re-check After Read Returns Empty ─────────────────────────────────
+
 
 class TestE067ReCheckAfterRead:
     """E-067: After marking all events read, unread returns empty."""
@@ -184,6 +195,7 @@ class TestE067ReCheckAfterRead:
 
 
 # ── E-068: TTL Cleanup ───────────────────────────────────────────────────────
+
 
 class TestE068TTLCleanup:
     """E-068: Events older than TTL are cleaned up automatically."""

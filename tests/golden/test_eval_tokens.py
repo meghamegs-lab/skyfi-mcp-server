@@ -17,6 +17,7 @@ from skyfi_mcp.auth.tokens import ConfirmationTokenManager
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def manager():
     return ConfirmationTokenManager(secret="golden-eval-secret", ttl_seconds=300)
@@ -30,14 +31,18 @@ def short_lived_manager():
 @pytest.fixture
 def order_token(manager):
     """A valid 'order' token with realistic context."""
-    return manager.create_token("order", {
-        "type": "pricing",
-        "aoi": "POLYGON((30 31, 33 31, 33 32, 30 32, 30 31))",
-        "ts": time.time(),
-    })
+    return manager.create_token(
+        "order",
+        {
+            "type": "pricing",
+            "aoi": "POLYGON((30 31, 33 31, 33 32, 30 32, 30 31))",
+            "ts": time.time(),
+        },
+    )
 
 
 # ── E-040: Token Create → Validate Roundtrip ────────────────────────────────
+
 
 class TestE040TokenRoundtrip:
     """E-040: A freshly created token validates successfully."""
@@ -76,6 +81,7 @@ class TestE040TokenRoundtrip:
 
 # ── E-041: Expired Token Rejected ────────────────────────────────────────────
 
+
 class TestE041ExpiredToken:
     """E-041: Tokens past TTL are rejected with clear error."""
 
@@ -94,6 +100,7 @@ class TestE041ExpiredToken:
 
 # ── E-042: Tampered Token Rejected ───────────────────────────────────────────
 
+
 class TestE042TamperedToken:
     """E-042: Any modification to the token breaks HMAC validation."""
 
@@ -103,7 +110,7 @@ class TestE042TamperedToken:
         assert valid is False
 
     def test_truncated_token(self, manager, order_token):
-        truncated = order_token[:len(order_token) // 2]
+        truncated = order_token[: len(order_token) // 2]
         valid, msg = manager.validate_token(truncated, "order")
         assert valid is False
 
@@ -120,6 +127,7 @@ class TestE042TamperedToken:
 
 
 # ── E-043: Wrong Action Type Rejected ────────────────────────────────────────
+
 
 class TestE043WrongAction:
     """E-043: Token for action 'order' rejects validation for 'delete'."""
@@ -140,21 +148,25 @@ class TestE043WrongAction:
 
 # ── E-044: Invalid Format Rejected ───────────────────────────────────────────
 
+
 class TestE044InvalidFormat:
     """E-044: Random strings and malformed input are rejected gracefully."""
 
-    @pytest.mark.parametrize("bad_token", [
-        "",
-        "not-a-token",
-        "abcdef123456",
-        "eyJhbGciOiJIUzI1NiJ9",  # Looks like JWT but isn't
-        "===",
-        "null",
-        "undefined",
-        " ",
-        "\n",
-        "a" * 1000,
-    ])
+    @pytest.mark.parametrize(
+        "bad_token",
+        [
+            "",
+            "not-a-token",
+            "abcdef123456",
+            "eyJhbGciOiJIUzI1NiJ9",  # Looks like JWT but isn't
+            "===",
+            "null",
+            "undefined",
+            " ",
+            "\n",
+            "a" * 1000,
+        ],
+    )
     def test_malformed_tokens_rejected(self, manager, bad_token):
         valid, msg = manager.validate_token(bad_token, "order")
         assert valid is False
@@ -163,6 +175,7 @@ class TestE044InvalidFormat:
 
 
 # ── E-045: Order Without Token Rejected ──────────────────────────────────────
+
 
 class TestE045OrderWithoutToken:
     """E-045: Order tools reject calls when token is missing or empty."""
@@ -177,6 +190,7 @@ class TestE045OrderWithoutToken:
 
 
 # ── E-046: Full Pricing → Token → Order Validation ──────────────────────────
+
 
 class TestE046FullFlow:
     """E-046: Complete flow: pricing issues token, order validates it."""
