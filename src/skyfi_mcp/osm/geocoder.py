@@ -52,10 +52,33 @@ async def geocode_to_wkt(
     lon = float(result["lon"])
     display_name = result.get("display_name", location_name)
 
-    # Use the returned geometry if available, otherwise create a bounding box
+    # Use the returned geometry if available, otherwise create a bounding box.
+    # SkyFi's API can't handle very complex polygons (hundreds of vertices),
+    # so we simplify to a convex hull with at most ~50 vertices if needed.
     geojson = result.get("geojson")
     if geojson and geojson.get("type") in ("Polygon", "MultiPolygon"):
         geom = shape(geojson)
+        # Simplify complex polygons: use convex hull for very complex shapes,
+        # or simplify with tolerance for moderately complex ones.
+        if geom.is_valid:
+            if geom.geom_type == "Polygon":
+                coords_count = sum(
+                    len(ring.coords)
+                    for ring in [geom.exterior] + list(geom.interiors)
+                )
+            else:
+                coords_count = sum(
+                    sum(len(ring.coords) for ring in [p.exterior] + list(p.interiors))
+                    for p in geom.geoms
+                )
+        else:
+            coords_count = 999
+        if coords_count > 100:
+            # Very complex boundary — use envelope (bounding box) for reliability
+            geom = geom.envelope
+        elif coords_count > 30:
+            # Moderately complex — simplify to reduce vertices
+            geom = geom.simplify(0.001, preserve_topology=True)
         wkt_str = shapely_wkt.dumps(geom, rounding_precision=6)
     elif "boundingbox" in result:
         bb = result["boundingbox"]  # [south, north, west, east]

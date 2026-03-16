@@ -13,6 +13,7 @@
  */
 
 import { McpAgent } from "agents/mcp";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   OAuthProvider,
   type OAuthHelpers,
@@ -23,12 +24,13 @@ import { z } from "zod";
 // ── Environment Bindings ────────────────────────────────────────────────────
 
 export interface Env {
-  MCP_SESSION: DurableObjectNamespace;
+  MCP_OBJECT: DurableObjectNamespace;
   PYTHON_BACKEND_URL: string;
   SKYFI_OAUTH_CLIENT_ID?: string;
   SKYFI_OAUTH_CLIENT_SECRET?: string;
   COOKIE_ENCRYPTION_KEY?: string;
   OAUTH_KV: KVNamespace;
+  OAUTH_PROVIDER?: OAuthHelpers; // Injected by OAuthProvider at runtime
 }
 
 // Per-session state stored in the Durable Object
@@ -36,56 +38,83 @@ interface SessionState {
   apiKey?: string;
 }
 
-// ── Helper: Extract API key from request ────────────────────────────────────
+// ── Helper: SHA-256 hex hash (same algorithm as the OAuth library) ──────────
 
-function extractApiKey(request: Request): string | undefined {
-  const authHeader = request.headers.get("Authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    return authHeader.slice(7);
-  }
-  return (
-    request.headers.get("X-Skyfi-Api-Key") ??
-    undefined
-  );
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// ── Helper: Ensure OAuth client exists in KV ────────────────────────────────
+//
+// The OAuthProvider library stores clients in KV as `client:<id>` and looks
+// them up via `env.OAUTH_KV.get("client:<id>")`. Its `createClient()` method
+// ignores any clientId you pass and generates a random one. So we must write
+// the client record to KV ourselves in the exact format the library expects.
+
+async function ensureClientRegistered(env: Env): Promise<void> {
+  const clientId = env.SKYFI_OAUTH_CLIENT_ID!;
+  const kvKey = `client:${clientId}`;
+
+  // Hash the secret the same way the library does (SHA-256 hex)
+  const rawSecret = env.SKYFI_OAUTH_CLIENT_SECRET ?? "";
+  const hashedSecret = rawSecret ? await sha256Hex(rawSecret) : undefined;
+
+  // Write client in the exact ClientInfo format the library expects.
+  // Always overwrite to ensure redirect URIs and auth methods stay current.
+  const clientInfo = {
+    clientId,
+    clientSecret: hashedSecret,
+    redirectUris: [
+      "https://claude.ai/oauth/callback",
+      "https://claude.ai/api/mcp/auth_callback",
+    ],
+    clientName: "SkyFi MCP for Claude",
+    grantTypes: ["authorization_code", "refresh_token"],
+    responseTypes: ["code"],
+    tokenEndpointAuthMethod: "client_secret_post",
+    registrationDate: Math.floor(Date.now() / 1000),
+  };
+
+  await env.OAUTH_KV.put(kvKey, JSON.stringify(clientInfo));
 }
 
 // ── OAuth 2.1 Handler ───────────────────────────────────────────────────────
 //
 // For Claude Web and other OAuth-based MCP clients. The flow:
 //   1. Client redirects user to /authorize
-//   2. We redirect to SkyFi's login page (or a simple API key entry page)
-//   3. User authenticates, we get their SkyFi API key
-//   4. We issue an OAuth access token that wraps the SkyFi API key
-//   5. Client uses the access token in Bearer header for MCP calls
-//
+//   2. Worker shows API key entry form
+//   3. User enters their SkyFi API key
+//   4. Worker validates key, issues OAuth authorization code
+//   5. Client exchanges code for access token at /token
+//   6. Client uses the access token in Bearer header for MCP calls
 
 async function handleOAuthAuthorize(
   request: Request,
   env: Env,
   oauthHelpers: OAuthHelpers,
 ): Promise<Response> {
-  // Extract the OAuth authorization request parameters
-  const url = new URL(request.url);
-  const clientId = url.searchParams.get("client_id");
-  const redirectUri = url.searchParams.get("redirect_uri");
-  const state = url.searchParams.get("state");
-  const codeChallenge = url.searchParams.get("code_challenge");
-  const codeChallengeMethod = url.searchParams.get("code_challenge_method");
+  // Ensure the OAuth client exists in KV before the library tries to look it up
+  await ensureClientRegistered(env);
 
-  if (!clientId || !redirectUri || !state) {
+  // Use the library's parser to get a proper AuthRequest object
+  const authRequest = await oauthHelpers.parseAuthRequest(request);
+
+  if (!authRequest.clientId || !authRequest.redirectUri) {
     return new Response("Missing required OAuth parameters", { status: 400 });
   }
 
-  // Store the auth request so we can complete it after user provides API key
+  // Store the parsed AuthRequest so we can pass it to completeAuthorization later
   const authId = crypto.randomUUID();
   await env.OAUTH_KV.put(
     `auth:${authId}`,
-    JSON.stringify({ clientId, redirectUri, state, codeChallenge, codeChallengeMethod }),
+    JSON.stringify(authRequest),
     { expirationTtl: 600 }, // 10 minutes
   );
 
   // Serve a simple API key entry page
-  // In production, this could redirect to SkyFi's actual login flow
   const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -142,20 +171,14 @@ async function handleOAuthCallback(
     return new Response("Missing auth_id or api_key", { status: 400 });
   }
 
-  // Retrieve the stored auth request
+  // Retrieve the stored AuthRequest object
   const stored = await env.OAUTH_KV.get(`auth:${authId}`);
   if (!stored) {
     return new Response("Authorization session expired. Please try again.", { status: 400 });
   }
   await env.OAUTH_KV.delete(`auth:${authId}`);
 
-  const authRequest = JSON.parse(stored) as {
-    clientId: string;
-    redirectUri: string;
-    state: string;
-    codeChallenge?: string;
-    codeChallengeMethod?: string;
-  };
+  const authRequest = JSON.parse(stored) as AuthRequest;
 
   // Validate the API key by making a quick whoami call to SkyFi
   try {
@@ -175,18 +198,27 @@ async function handleOAuthCallback(
     // Backend unreachable — allow anyway (key will fail on actual tool calls)
   }
 
-  // Complete the OAuth flow: issue an authorization code that wraps the API key
-  return oauthHelpers.completeAuthorization({
-    request,
-    userId: apiKey, // Use API key as the user identifier
+  // Complete the OAuth flow with the proper AuthRequest object.
+  // authRequest.scope is already a string[] from parseAuthRequest.
+  // IMPORTANT: userId is used in the auth code format "userId:grantId:secret"
+  // and the library splits on ":". The raw API key may contain ":" or other
+  // characters that break this format, so we use a safe hash as the userId
+  // and store the actual API key in props.
+  const safeUserId = await sha256Hex(apiKey);
+  const { redirectTo } = await oauthHelpers.completeAuthorization({
+    request: authRequest,
+    userId: safeUserId,
     metadata: { apiKey },
-    scope: authRequest.clientId,
+    scope: authRequest.scope || [],
     props: {
-      redirectUri: authRequest.redirectUri,
-      state: authRequest.state,
-      codeChallenge: authRequest.codeChallenge ?? undefined,
-      codeChallengeMethod: authRequest.codeChallengeMethod ?? undefined,
+      apiKey,
     },
+  });
+
+  // Redirect the user back to Claude with the authorization code
+  return new Response(null, {
+    status: 302,
+    headers: { Location: redirectTo },
   });
 }
 
@@ -223,16 +255,27 @@ async function proxyToolCall(
 
 // ── McpAgent: 12 tools with Zod schemas ─────────────────────────────────────
 
-export class SkyFiMcpAgent extends McpAgent<Env, SessionState, {}> {
+export class SkyFiMcpAgent extends McpAgent<Env, SessionState, { apiKey?: string }> {
+  // The MCP server instance — required as a class field by McpAgent (abstract property)
+  server = new McpServer({
+    name: "SkyFi MCP Server",
+    version: "0.1.0",
+  });
+
   // Store the API key from the initial connection
   private apiKey?: string;
 
   async init() {
+    // Extract the API key from OAuth token props (set during completeAuthorization).
+    if (this.props?.apiKey) {
+      this.apiKey = this.props.apiKey;
+    }
+
     // ── Tool 1: search_satellite_imagery ──────────────────────────────────
     this.server.tool(
       "search_satellite_imagery",
       "Search the SkyFi satellite image catalog. Accepts plain location names " +
-        "(auto-geocoded) or WKT polygons. Use next_page to paginate.",
+      "(auto-geocoded) or WKT polygons. Use next_page to paginate.",
       {
         location: z.string().describe("Place name or WKT polygon"),
         from_date: z.string().optional().describe("Start date (ISO format)"),
@@ -265,7 +308,7 @@ export class SkyFiMcpAgent extends McpAgent<Env, SessionState, {}> {
     this.server.tool(
       "check_feasibility",
       "Check feasibility of a new satellite capture. Read-only exploration " +
-        "— does NOT return a confirmation token. Use preview_order when ready to order.",
+      "— does NOT return a confirmation token. Use preview_order when ready to order.",
       {
         location: z.string().describe("Place name or WKT polygon"),
         product_type: z.string().describe("DAY, NIGHT, SAR, etc."),
@@ -288,7 +331,7 @@ export class SkyFiMcpAgent extends McpAgent<Env, SessionState, {}> {
     this.server.tool(
       "get_pricing_overview",
       "Get a broad pricing overview across all products and resolutions. " +
-        "For exact pricing on a specific image, use preview_order instead.",
+      "For exact pricing on a specific image, use preview_order instead.",
       {
         location: z.string().optional().describe("Optional place name or WKT for area-specific pricing"),
       },
@@ -303,9 +346,11 @@ export class SkyFiMcpAgent extends McpAgent<Env, SessionState, {}> {
     // ── Tool 4: preview_order ─────────────────────────────────────────────
     this.server.tool(
       "preview_order",
-      "Preview an order with exact pricing and feasibility check. Returns a " +
-        "confirmation_token. MUST be called before confirm_order. Present results " +
-        "to user and get approval before proceeding.",
+      "Add an image to cart / preview an order. When a user says 'order', 'buy', " +
+      "'purchase', or 'add to cart', call this tool FIRST automatically — do NOT " +
+      "ask the user whether to preview. This returns pricing details and a " +
+      "confirmation_token. Present the pricing to the user and ask for confirmation " +
+      "before calling confirm_order.",
       {
         order_type: z.enum(["ARCHIVE", "TASKING"]).describe("Order type"),
         location: z.string().describe("Place name or WKT polygon"),
@@ -329,8 +374,9 @@ export class SkyFiMcpAgent extends McpAgent<Env, SessionState, {}> {
     // ── Tool 5: confirm_order (destructive) ───────────────────────────────
     this.server.tool(
       "confirm_order",
-      "Place a satellite imagery order. CHARGES THE USER'S ACCOUNT. " +
-        "Requires confirmation_token from preview_order.",
+      "Confirm and place a satellite imagery order. CHARGES THE USER'S ACCOUNT. " +
+      "ONLY call this after the user explicitly approves the pricing shown by " +
+      "preview_order. Requires the confirmation_token returned by preview_order.",
       {
         confirmation_token: z.string().describe("Token from preview_order (required)"),
         order_type: z.enum(["ARCHIVE", "TASKING"]),
@@ -406,7 +452,7 @@ export class SkyFiMcpAgent extends McpAgent<Env, SessionState, {}> {
     this.server.tool(
       "setup_area_monitoring",
       "Manage AOI monitoring. Actions: create (new monitor), list (active monitors), " +
-        "history (trigger history), delete (remove monitor).",
+      "history (trigger history), delete (remove monitor).",
       {
         action: z.enum(["create", "list", "history", "delete"]),
         location: z.string().optional().describe("Place name or WKT. Required for 'create'."),
@@ -447,7 +493,7 @@ export class SkyFiMcpAgent extends McpAgent<Env, SessionState, {}> {
     this.server.tool(
       "geocode_location",
       "Convert a place name to WKT coordinates via OpenStreetMap. " +
-        "For imagery search, use search_satellite_imagery instead (it auto-geocodes).",
+      "For imagery search, use search_satellite_imagery instead (it auto-geocodes).",
       {
         location_name: z.string().describe("Place name (e.g., 'Suez Canal')"),
         buffer_km: z.number().default(1.0).describe("Buffer around point locations (km)"),
@@ -464,7 +510,7 @@ export class SkyFiMcpAgent extends McpAgent<Env, SessionState, {}> {
     this.server.tool(
       "search_nearby_pois",
       "Find points of interest near a location using OpenStreetMap. " +
-        "Useful for discovering imagery targets like airports, ports, military bases.",
+      "Useful for discovering imagery targets like airports, ports, military bases.",
       {
         lat: z.number().describe("Center latitude"),
         lon: z.number().describe("Center longitude"),
@@ -497,12 +543,6 @@ export class SkyFiMcpAgent extends McpAgent<Env, SessionState, {}> {
 }
 
 // ── HTTP Handler: Routing ───────────────────────────────────────────────────
-//
-// Two modes of operation:
-//   1. OAuth-enabled (Claude Web): Wrap with OAuthProvider, which handles
-//      /authorize, /token, and token validation automatically.
-//   2. Bearer token / API key (programmatic): Direct access via headers.
-//
 
 async function handleMcpRoutes(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -537,8 +577,6 @@ async function handleMcpRoutes(request: Request, env: Env): Promise<Response> {
 
   // OAuth callback (POST from API key form)
   if (url.pathname === "/oauth/callback" && request.method === "POST") {
-    // This is handled by the OAuthProvider wrapper when OAuth is enabled.
-    // If we reach here without OAuth, return an error.
     return new Response("OAuth not configured", { status: 501 });
   }
 
@@ -555,46 +593,48 @@ async function handleMcpRoutes(request: Request, env: Env): Promise<Response> {
   return new Response("Not Found", { status: 404 });
 }
 
+// ── Main Entry Point ────────────────────────────────────────────────────────
+
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     // If OAuth secrets are configured, wrap with OAuthProvider
     if (env.SKYFI_OAUTH_CLIENT_ID && env.COOKIE_ENCRYPTION_KEY) {
+      // Pre-register the OAuth client in KV before any request is processed.
+      // The library's createClient() ignores our clientId, so we write directly.
+      console.log("[OAuth] Client ID:", env.SKYFI_OAUTH_CLIENT_ID);
+      console.log("[OAuth] Expected: skyfi-mcp-claude-web");
+      console.log("[OAuth] Match:", env.SKYFI_OAUTH_CLIENT_ID === "skyfi-mcp-claude-web");
+
+      await ensureClientRegistered(env);
+
+      const mcpHandler = SkyFiMcpAgent.serve("/mcp");
       return new OAuthProvider({
         apiRoute: "/mcp",
-        apiHandler: SkyFiMcpAgent.serve("/mcp"),
-        defaultHandler: async (request, oauthHelpers) => {
-          const url = new URL(request.url);
+        apiHandler: mcpHandler,
+        authorizeEndpoint: "/authorize",
+        tokenEndpoint: "/token",
+        defaultHandler: {
+          fetch: async (req: Request, handlerEnv: Env, handlerCtx: ExecutionContext) => {
+            const url = new URL(req.url);
+            const oauthHelpers = handlerEnv.OAUTH_PROVIDER!;
 
-          // Custom authorize page (API key entry form)
-          if (url.pathname === "/authorize") {
-            return handleOAuthAuthorize(request, env, oauthHelpers);
-          }
+            // Custom authorize page (API key entry form)
+            if (url.pathname === "/authorize") {
+              return handleOAuthAuthorize(req, handlerEnv, oauthHelpers);
+            }
 
-          // OAuth callback (user submitted their API key)
-          if (url.pathname === "/oauth/callback" && request.method === "POST") {
-            return handleOAuthCallback(request, env, oauthHelpers);
-          }
+            // OAuth callback (user submitted their API key)
+            if (url.pathname === "/oauth/callback" && req.method === "POST") {
+              return handleOAuthCallback(req, handlerEnv, oauthHelpers);
+            }
 
-          // All other routes (health, landing, SSE)
-          return handleMcpRoutes(request, env);
-        },
-        // OAuth clients configuration
-        clients: {
-          [env.SKYFI_OAUTH_CLIENT_ID]: {
-            clientSecret: env.SKYFI_OAUTH_CLIENT_SECRET ?? "",
-            redirectUris: ["https://claude.ai/oauth/callback"],
+            // All other routes (health, landing, SSE)
+            return handleMcpRoutes(req, handlerEnv);
           },
         },
-        // Token exchange: map OAuth tokens to SkyFi API keys
-        tokenExchangeCallback: async (options) => {
-          // The userId was set to the API key during authorization
-          return {
-            accessToken: options.userId,
-            tokenType: "bearer",
-            expiresIn: 86400, // 24 hours
-          };
-        },
-      }).fetch(request, env);
+        // Access token TTL: 24 hours
+        accessTokenTTL: 86400,
+      }).fetch(request, env, ctx);
     }
 
     // No OAuth configured — direct Bearer token / API key mode

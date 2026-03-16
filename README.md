@@ -2,257 +2,186 @@
 
 > **Satellite imagery at the speed of conversation.** A Model Context Protocol (MCP) server that lets AI agents search, analyze, order, and monitor satellite imagery through [SkyFi's platform](https://skyfi.com).
 
-[![CI](https://github.com/skyfi/skyfi-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/skyfi/skyfi-mcp-server/actions)
-[![PyPI](https://img.shields.io/pypi/v/skyfi-mcp)](https://pypi.org/project/skyfi-mcp/)
+[![CI/CD](https://github.com/skyfi/skyfi-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/skyfi/skyfi-mcp-server/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
 
 ## What is this?
 
-As AI agents take on more autonomous decision-making, they need programmatic access to real-world data. SkyFi MCP Server bridges the gap between conversational AI and satellite imagery by exposing SkyFi's full API as MCP tools that any AI agent can use.
+SkyFi MCP Server bridges the gap between conversational AI and satellite imagery. It exposes SkyFi's full API as 12 MCP tools that any AI agent can use — Claude, GPT-4, Gemini, LangChain, and more.
 
 An agent can go from *"Show me recent imagery of the Suez Canal"* to presenting search results, checking feasibility, getting pricing, and placing an order — all through natural conversation with human confirmation at every financial step.
 
 ## Architecture
 
+The server uses a **hybrid two-tier architecture**:
+
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    AI Agent / Client                     │
-│  (Claude, GPT-4, Gemini, LangChain, ADK, AI SDK, etc.) │
-└──────────────┬──────────────────────────────────────────┘
-               │  MCP Protocol (Streamable HTTP / SSE / stdio)
+┌─────────────────────────────────────────────────────┐
+│              AI Agent / MCP Client                    │
+│  (Claude, GPT-4, Gemini, LangChain, ADK, AI SDK)    │
+└──────────────┬───────────────────────────────────────┘
+               │  MCP Protocol (Streamable HTTP / SSE)
                ▼
-┌─────────────────────────────────────────────────────────┐
-│                   SkyFi MCP Server                       │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐  │
-│  │ Search   │ │ Pricing  │ │ Orders   │ │ Monitoring│  │
-│  │ & OSM    │ │ & Feas.  │ │ (w/token)│ │ & Webhooks│  │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └─────┬─────┘  │
-│       └─────────────┼───────────┼──────────────┘        │
-│                     ▼           ▼                        │
-│              ┌─────────────────────────┐                 │
-│              │    SkyFi API Client     │                 │
-│              │  (httpx + Pydantic v2)  │                 │
-│              └────────────┬────────────┘                 │
-└───────────────────────────┼─────────────────────────────┘
-                            ▼
-                 ┌─────────────────────┐
-                 │  SkyFi Platform API  │
-                 │  app.skyfi.com       │
-                 └─────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│        Cloudflare Worker  (TypeScript)               │
+│    MCP proxy + OAuth 2.1 + Zod schemas              │
+│    Durable Objects for session management            │
+└──────────────┬───────────────────────────────────────┘
+               │  POST /tool/<name>
+               ▼
+┌─────────────────────────────────────────────────────┐
+│         Python Backend  (Fly.io)                     │
+│    FastMCP + 12 tools + SkyFi API client            │
+│    Geocoding, HMAC tokens, webhook store            │
+└──────────────┬───────────────────────────────────────┘
+               │  HTTPS
+               ▼
+        ┌──────────────┐
+        │ SkyFi API    │
+        │ app.skyfi.com│
+        └──────────────┘
 ```
+
+The **Cloudflare Worker** handles MCP protocol, OAuth 2.1 for Claude Web, and Zod schema validation. The **Python backend** contains all business logic and runs on Fly.io.
+
+For local development, the Python backend runs standalone as a full MCP server — no Worker needed.
 
 ## Quick Start
 
-### Install
-
 ```bash
-pip install skyfi-mcp
-```
-
-Or from source:
-
-```bash
+# Clone and install
 git clone https://github.com/skyfi/skyfi-mcp-server.git
 cd skyfi-mcp-server
 pip install -e .
-```
 
-### Configure
-
-```bash
-# Option 1: Environment variable
+# Configure your SkyFi API key
 export SKYFI_API_KEY="your-api-key-here"
 
-# Option 2: Config file
-skyfi-mcp config --init
-# Then edit ~/.skyfi/config.json with your API key
-```
-
-Get your API key from [SkyFi](https://app.skyfi.com) (requires Pro account).
-
-### Run
-
-```bash
-# HTTP server (for remote clients like Claude Web, OpenAI, etc.)
+# Start the server
 skyfi-mcp serve
-
-# Local stdio (for Claude Desktop, Claude Code, etc.)
-skyfi-mcp serve --transport stdio
 ```
 
-The server starts at `http://localhost:8000` with these endpoints:
+The server starts at `http://localhost:8000`. See [SETUP.md](SETUP.md) for detailed instructions.
 
-| Path | Method | Description |
-|------|--------|-------------|
-| `/` | GET | Landing page (server info) |
-| `/health` | GET | Health check |
-| `/webhook` | POST | SkyFi notification receiver |
-| `/mcp` | POST/GET | MCP protocol (for MCP clients) |
+## Tools (12)
 
-## Tools Reference (12 tools)
+| Category | Tool | What it does |
+|----------|------|-------------|
+| **Search** | `search_satellite_imagery` | Search catalog with auto-geocoding, filters, pagination |
+| **Pricing** | `get_pricing_overview` | General pricing across all products and resolutions |
+| **Feasibility** | `check_feasibility` | Assess if new capture is feasible (auto-polls) |
+| **Order Flow** | `preview_order` | Exact pricing + feasibility + confirmation token |
+| **Order Flow** | `confirm_order` | Place archive or tasking order (requires token) |
+| **Order Mgmt** | `check_order_status` | View specific order or list order history |
+| **Order Mgmt** | `get_download_url` | Download URL for completed imagery |
+| **Monitoring** | `setup_area_monitoring` | Create, list, view, or delete AOI monitors |
+| **Monitoring** | `check_new_images` | Poll for new imagery events from webhooks |
+| **Geospatial** | `geocode_location` | Place name to WKT polygon (via OpenStreetMap) |
+| **Geospatial** | `search_nearby_pois` | Find airports, ports, bases near a location |
+| **Account** | `get_account_info` | Budget usage and payment status |
 
-### Search & Geospatial
-| Tool | Description |
-|------|-------------|
-| `search_satellite_imagery` | Search catalog with auto-geocoding, filters, and pagination |
-| `geocode_location` | Convert place names to WKT coordinates (via OpenStreetMap) |
-| `search_nearby_pois` | Find airports, ports, buildings near a location |
-
-### Pricing & Feasibility
-| Tool | Description |
-|------|-------------|
-| `get_pricing_overview` | General pricing across all products/resolutions |
-| `check_feasibility` | Assess if new capture is feasible (auto-polls for results) |
-| `preview_order` | Exact pricing + feasibility check. **Returns confirmation_token.** |
-
-### Ordering (Human-in-the-Loop)
-| Tool | Description |
-|------|-------------|
-| `confirm_order` | Place archive or tasking order. **Requires confirmation_token.** |
-| `check_order_status` | View specific order or list order history |
-| `get_download_url` | Download URL for completed imagery |
-
-### Monitoring & Notifications
-| Tool | Description |
-|------|-------------|
-| `setup_area_monitoring` | Create, list, view history, or delete AOI monitors |
-| `check_new_images` | Poll for new imagery events from webhooks |
-
-### Account
-| Tool | Description |
-|------|-------------|
-| `get_account_info` | Budget usage, payment status |
+All tools have MCP annotations (`readOnlyHint`, `destructiveHint`, etc.). Only `confirm_order` is marked destructive.
 
 ## Human-in-the-Loop Safety
 
-Orders are protected by a confirmation token system:
+Orders are protected by HMAC-signed confirmation tokens:
 
 ```
-1. Agent calls search_satellite_imagery → finds available images
-2. Agent calls preview_order → receives pricing + confirmation_token
-3. Agent presents price to user → user says "go ahead"
-4. Agent calls confirm_order with confirmation_token → order placed
+1. Agent calls preview_order      → gets pricing + confirmation_token
+2. Agent presents price to user   → user says "go ahead"
+3. Agent calls confirm_order      → token validated, order placed
 ```
 
-Tokens are HMAC-signed, expire after 5 minutes, and are validated server-side. Order tools reject requests without a valid token. This is enforced at the server level — agents cannot bypass it.
+Archive tokens expire in 5 minutes. Tasking tokens expire in 24 hours (to allow time for feasibility review). Without a valid token, order tools reject the request — agents cannot bypass this.
 
-## Deployment
+## Server Endpoints
 
-### Cloud (Fly.io)
+### Python Backend (local / Fly.io)
 
-```bash
-fly launch
-fly secrets set SKYFI_API_KEY="your-key"
-fly deploy
-```
+| Path | Method | Description |
+|------|--------|-------------|
+| `/` | GET | Landing page (server info JSON) |
+| `/health` | GET | Health check |
+| `/webhook` | POST | SkyFi notification receiver |
+| `/tool/<name>` | POST | Direct tool invocation (Worker proxy target) |
+| `/mcp` | POST/GET | MCP protocol (Streamable HTTP + SSE) |
 
-Your MCP server is now at `https://your-app.fly.dev/mcp`.
+### Cloudflare Worker (production)
 
-### Docker
+| Path | Method | Description |
+|------|--------|-------------|
+| `/mcp` | POST/GET | MCP protocol (Streamable HTTP) |
+| `/sse` | GET | MCP protocol (legacy SSE) |
+| `/authorize` | GET | OAuth 2.1 authorization (Claude Web) |
+| `/health` | GET | Health check |
 
-```bash
-docker build -t skyfi-mcp .
-docker run -p 8000:8000 -e SKYFI_API_KEY="your-key" skyfi-mcp
-```
-
-### AWS ECS Fargate
-
-Recommended for AWS deployments — supports HTTP streaming with no cold starts. Use the provided `Dockerfile` with your ECS task definition.
-
-### Cloud Auth (Multi-user)
-
-For cloud deployment, clients pass their own SkyFi API key in headers:
-
-```
-Authorization: Bearer <skyfi-api-key>
-```
-
-or:
-
-```
-X-Skyfi-Api-Key: <skyfi-api-key>
-```
+The `/mcp` endpoint is for MCP clients only. Browsers get a `406 Not Acceptable` — this is expected.
 
 ## Integration Guides
 
-| Platform | Guide | Type |
-|----------|-------|------|
-| LangChain / LangGraph | [Full Example](docs/langchain-integration.md) | Python |
-| Claude Web | [Full Example](docs/claude-web-integration.md) | Config |
-| OpenAI | [Full Example](docs/openai-integration.md) | Python |
-| Google ADK | [Config Guide](docs/adk-integration.md) | Python |
-| Vercel AI SDK | [Config Guide](docs/ai-sdk-integration.md) | TypeScript |
-| Anthropic API / Claude Code | [Config Guide](docs/anthropic-api-integration.md) | JSON + Python |
-| Google Gemini | [Config Guide](docs/gemini-integration.md) | Python |
+| Platform | Guide |
+|----------|-------|
+| LangChain / LangGraph | [docs/langchain-integration.md](docs/langchain-integration.md) |
+| Claude Web | [docs/claude-web-integration.md](docs/claude-web-integration.md) |
+| OpenAI | [docs/openai-integration.md](docs/openai-integration.md) |
+| Google ADK | [docs/adk-integration.md](docs/adk-integration.md) |
+| Vercel AI SDK | [docs/ai-sdk-integration.md](docs/ai-sdk-integration.md) |
+| Anthropic API | [docs/anthropic-api-integration.md](docs/anthropic-api-integration.md) |
+| Google Gemini | [docs/gemini-integration.md](docs/gemini-integration.md) |
 
-## Demo Agent
-
-A full research agent that demonstrates all capabilities:
+## Demo Agents
 
 ```bash
+# Simple agent (no framework, httpx only)
+python examples/simple_agent.py "Golden Gate Bridge"
+
+# Full LangChain research agent
 pip install -e ".[demo]"
 python examples/demo_agent.py
 ```
 
-Try: *"What satellite imagery is available for the new Istanbul airport?"*
-
-The agent will geocode the location, search the archive, check feasibility for new captures, compare pricing, and present a research brief.
-
-## Project Documentation
+## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [Phase & Requirements Map](docs/project/01-phase-requirements-map.md) | All 19 requirements mapped to 8 implementation phases |
-| [Architecture Diagram](docs/project/02-architecture.mermaid) | Full system architecture in Mermaid format |
-| [Golden Evals](docs/project/03-golden-evals.md) | 95 test scenarios across 10 categories |
-| [Observability Strategy](docs/project/04-observability.md) | Logging, metrics, tracing recommendations |
-| [Design Document](docs/project/05-presearch-design-document.md) | Pre-implementation research and design decisions |
-| [Time & Tradeoff Analysis](docs/project/06-time-estimation-tradeoffs.md) | Estimation analysis and known tradeoffs |
+| **[SETUP.md](SETUP.md)** | Local development setup, dependencies, configuration, testing |
+| **[DEPLOY.md](DEPLOY.md)** | Production deployment to Fly.io + Cloudflare, CI/CD, secrets |
 | [CLAUDE.md](CLAUDE.md) | AI assistant context file for this codebase |
-
-## Development
-
-```bash
-git clone https://github.com/skyfi/skyfi-mcp-server.git
-cd skyfi-mcp-server
-pip install -e ".[dev]"
-
-# Run tests (51 tests)
-pytest -v
-
-# Lint
-ruff check src/ tests/
-ruff format src/ tests/
-```
+| [examples/README.md](examples/README.md) | Demo agent documentation |
 
 ## Project Structure
 
 ```
 skyfi-mcp-server/
-├── src/skyfi_mcp/
-│   ├── __main__.py          # CLI + ASGI app composition
-│   ├── server.py            # FastMCP server with 12 outcome-oriented tools
+├── worker/                    # Cloudflare Worker (TypeScript)
+│   ├── src/index.ts           # McpAgent + OAuth 2.1 + Zod schemas
+│   ├── package.json           # agents, zod, workers-oauth-provider
+│   ├── wrangler.toml          # Durable Objects, KV, env config
+│   └── tsconfig.json
+├── src/skyfi_mcp/             # Python backend (all business logic)
+│   ├── __main__.py            # CLI + ASGI app + /tool/<name> proxy
+│   ├── server.py              # FastMCP server with 12 tools
 │   ├── api/
-│   │   ├── client.py        # Async SkyFi API client (httpx)
-│   │   └── models.py        # 57 Pydantic v2 models from OpenAPI
+│   │   ├── client.py          # Async SkyFi API client (httpx)
+│   │   └── models.py          # 57 Pydantic v2 models
 │   ├── auth/
-│   │   ├── config.py        # Dual auth (local + cloud)
-│   │   └── tokens.py        # HMAC confirmation tokens
+│   │   ├── config.py          # Dual auth (local + cloud)
+│   │   └── tokens.py          # HMAC confirmation tokens
 │   ├── osm/
-│   │   └── geocoder.py      # Nominatim + Overpass integration
+│   │   └── geocoder.py        # Nominatim + Overpass integration
 │   └── webhooks/
-│       └── store.py         # SQLite webhook event store
-├── examples/
-│   └── demo_agent.py        # LangChain research agent
-├── docs/                    # Integration guides (7 platforms) + project docs
-├── tests/                   # pytest suite (51 tests)
-├── Dockerfile               # Container deployment
-├── fly.toml                 # Fly.io configuration
-└── pyproject.toml           # Package configuration
+│       └── store.py           # SQLite webhook event store
+├── tests/                     # pytest + golden evals (212 tests)
+├── examples/                  # Demo agents (LangChain + simple)
+├── docs/                      # Integration guides (7 platforms)
+├── Dockerfile                 # Python backend container
+├── fly.toml                   # Fly.io config
+├── pyproject.toml             # Package config
+└── .github/workflows/ci.yml   # CI/CD (lint + test + deploy)
 ```
 
 ## License
 
-[MIT](LICENSE) — Copyright 2025 SkyFi Inc.
+[MIT](LICENSE)

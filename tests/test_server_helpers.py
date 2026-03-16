@@ -95,6 +95,7 @@ class TestFormatSearchResults:
             "total_area_sq_km": 25.0,
             "overlap_ratio": 0.85,
             "overlap_sq_km": 21.0,
+            "off_nadir_angle": 12.5,
             "open_data": False,
             "thumbnail_urls": {"small": "https://example.com/thumb.jpg"},
             "delivery_time_hours": 24,
