@@ -63,8 +63,7 @@ async def geocode_to_wkt(
         if geom.is_valid:
             if geom.geom_type == "Polygon":
                 coords_count = sum(
-                    len(ring.coords)
-                    for ring in [geom.exterior] + list(geom.interiors)
+                    len(ring.coords) for ring in [geom.exterior] + list(geom.interiors)
                 )
             else:
                 coords_count = sum(

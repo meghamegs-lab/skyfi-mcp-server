@@ -23,9 +23,7 @@ class ConfirmationTokenManager:
     """
 
     def __init__(self, secret: str | None = None, ttl_seconds: int = 300):
-        default_secret = os.environ.get(
-            "SKYFI_TOKEN_SECRET", "skyfi-mcp-default-secret"
-        )
+        default_secret = os.environ.get("SKYFI_TOKEN_SECRET", "skyfi-mcp-default-secret")
         self.secret = (secret or default_secret).encode()
         self.ttl_seconds = ttl_seconds
 
@@ -39,19 +37,20 @@ class ConfirmationTokenManager:
         Returns:
             Base64-encoded signed token string.
         """
-        context_hash = hashlib.sha256(
-            json.dumps(context, sort_keys=True).encode()
-        ).hexdigest()[:16]
+        context_hash = hashlib.sha256(json.dumps(context, sort_keys=True).encode()).hexdigest()[:16]
 
-        payload = json.dumps({
-            "action": action,
-            "ctx": context_hash,
-            "ts": int(time.time()),
-        })
+        payload = json.dumps(
+            {
+                "action": action,
+                "ctx": context_hash,
+                "ts": int(time.time()),
+            }
+        )
 
         sig = hmac.new(self.secret, payload.encode(), hashlib.sha256).hexdigest()[:32]
         # Simple encoding: payload:signature
         import base64
+
         token = base64.urlsafe_b64encode(f"{payload}:{sig}".encode()).decode()
         return token
 
@@ -67,15 +66,14 @@ class ConfirmationTokenManager:
         """
         try:
             import base64
+
             decoded = base64.urlsafe_b64decode(token.encode()).decode()
             payload_str, sig = decoded.rsplit(":", 1)
         except Exception:
             return False, "Invalid token format"
 
         # Verify signature
-        expected_sig = hmac.new(
-            self.secret, payload_str.encode(), hashlib.sha256
-        ).hexdigest()[:32]
+        expected_sig = hmac.new(self.secret, payload_str.encode(), hashlib.sha256).hexdigest()[:32]
         if not hmac.compare_digest(sig, expected_sig):
             return False, "Invalid token signature"
 
