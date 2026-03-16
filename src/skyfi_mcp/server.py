@@ -229,7 +229,7 @@ def _format_search_results(
             "gsd_cm": a.gsd,
             "capture_date": a.capture_timestamp,
             "cloud_coverage_percent": a.cloud_coverage_percent,
-            "off_nadir_angle": a.off_nadir_angle,
+            "off_nadir_angle": getattr(a, "off_nadir_angle", None),
             "price_per_sq_km_usd": a.price_per_sq_km,
             "price_full_scene_usd": a.price_full_scene,
             "total_area_sq_km": a.total_area_sq_km,

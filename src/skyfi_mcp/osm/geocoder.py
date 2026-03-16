@@ -61,7 +61,16 @@ async def geocode_to_wkt(
         # Simplify complex polygons: use convex hull for very complex shapes,
         # or simplify with tolerance for moderately complex ones.
         if geom.is_valid:
-            coords_count = sum(len(ring.coords) for ring in ([geom.exterior] + list(geom.interiors))) if geom.geom_type == "Polygon" else sum(sum(len(ring.coords) for ring in ([p.exterior] + list(p.interiors))) for p in geom.geoms)
+            if geom.geom_type == "Polygon":
+                coords_count = sum(
+                    len(ring.coords)
+                    for ring in [geom.exterior] + list(geom.interiors)
+                )
+            else:
+                coords_count = sum(
+                    sum(len(ring.coords) for ring in [p.exterior] + list(p.interiors))
+                    for p in geom.geoms
+                )
         else:
             coords_count = 999
         if coords_count > 100:
