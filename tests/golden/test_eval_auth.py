@@ -9,8 +9,6 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from skyfi_mcp.auth.config import AuthConfig, extract_cloud_auth, load_local_config
 
 

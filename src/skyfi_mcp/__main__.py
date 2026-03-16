@@ -185,18 +185,18 @@ def _create_combined_app(mcp_server):
     # Import all tool functions from server.py so the Worker can proxy to them.
     # Each tool function accepts keyword arguments and returns a JSON string.
     from skyfi_mcp.server import (
-        search_satellite_imagery,
         check_feasibility,
+        check_new_images,
+        check_order_status,
+        confirm_order,
+        geocode_location,
+        get_account_info,
+        get_download_url,
         get_pricing_overview,
         preview_order,
-        confirm_order,
-        check_order_status,
-        get_download_url,
-        setup_area_monitoring,
-        check_new_images,
-        geocode_location,
         search_nearby_pois,
-        get_account_info,
+        search_satellite_imagery,
+        setup_area_monitoring,
     )
 
     # FastMCP's @mcp.tool() decorator may return a Tool wrapper object
