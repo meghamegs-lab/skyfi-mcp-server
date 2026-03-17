@@ -153,7 +153,7 @@ def _create_combined_app(mcp_server):
                     "mcp": "/mcp  (MCP protocol — use an MCP client, not a browser)",
                     "health": "/health  (GET — health check)",
                     "webhook": "/webhook  (POST — SkyFi notification webhook receiver)",
-                    "tool_proxy": "/tool/<name>  (POST — direct tool invocation for CF Worker proxy)",
+                    "tool_proxy": "/tool/<name>  (POST — tool invocation for Worker proxy)",
                 },
                 "docs": "https://github.com/skyfi/skyfi-mcp-server",
                 "note": (
